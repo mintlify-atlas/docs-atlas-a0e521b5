@@ -1,7 +1,7 @@
 ---
-title: "Configure Eventify for Your Environment"
+title: "Eventify Configuration: Environment Variable Reference"
 sidebarTitle: "Configuration"
-description: "Set up environment variables, database connections, file storage, mail, and queue settings for Eventify using the .env file."
+description: "A full reference for every .env variable Eventify reads, covering app identity, database, storage, cache, sessions, queues, and mail settings."
 ---
 
 Eventify follows the standard Laravel convention of storing all environment-specific configuration in a `.env` file at the project root. This file is never committed to version control — it exists only on the machine running the application. The `.env.example` file committed to the repository documents every variable the application reads, and serves as the authoritative template you copy when setting up a new environment.
@@ -66,6 +66,36 @@ These variables control the fundamental identity and runtime behavior of the Lar
 
 ---
 
+## Logging
+
+These variables control how Laravel writes application logs.
+
+<ParamField body="LOG_CHANNEL" type="string" default="stack">
+  The default log channel. The `stack` driver aggregates multiple channels into one. Other built-in options include `single`, `daily`, `stderr`, and `syslog`.
+
+  ```ini
+  LOG_CHANNEL=stack
+  ```
+</ParamField>
+
+<ParamField body="LOG_DEPRECATIONS_CHANNEL" type="string" default="null">
+  The channel used to log PHP and Laravel deprecation warnings. Set to `null` to discard deprecation notices, or point it to a named channel to capture them separately.
+
+  ```ini
+  LOG_DEPRECATIONS_CHANNEL=null
+  ```
+</ParamField>
+
+<ParamField body="LOG_LEVEL" type="string" default="debug">
+  The minimum severity level that Laravel will write to the log. Standard PSR-3 levels apply: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, and `emergency`. In production, set this to `error` or higher to reduce log noise.
+
+  ```ini
+  LOG_LEVEL=error
+  ```
+</ParamField>
+
+---
+
 ## Database
 
 Eventify requires a MySQL database. These variables configure the PDO connection that Laravel uses for all Eloquent queries, migrations, and seeders.
@@ -86,8 +116,8 @@ Eventify requires a MySQL database. These variables configure the PDO connection
   The TCP port MySQL is listening on. The default MySQL port is `3306`.
 </ParamField>
 
-<ParamField body="DB_DATABASE" type="string" required>
-  The name of the MySQL database Eventify will use. You must create this database before running migrations:
+<ParamField body="DB_DATABASE" type="string" default="laravel">
+  The name of the MySQL database Eventify will use. The `.env.example` default is `laravel`; update this to your chosen database name. You must create the database before running migrations:
 
   ```sql
   CREATE DATABASE eventify CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -98,16 +128,16 @@ Eventify requires a MySQL database. These variables configure the PDO connection
   ```
 </ParamField>
 
-<ParamField body="DB_USERNAME" type="string" required>
-  The MySQL user that Laravel will authenticate as. Ensure this user has `CREATE`, `ALTER`, `DROP`, `SELECT`, `INSERT`, `UPDATE`, and `DELETE` privileges on `DB_DATABASE`.
+<ParamField body="DB_USERNAME" type="string" default="root">
+  The MySQL user that Laravel will authenticate as. The `.env.example` default is `root`. Ensure this user has `CREATE`, `ALTER`, `DROP`, `SELECT`, `INSERT`, `UPDATE`, and `DELETE` privileges on `DB_DATABASE`.
 
   ```ini
   DB_USERNAME=eventify_user
   ```
 </ParamField>
 
-<ParamField body="DB_PASSWORD" type="string" required>
-  The password for `DB_USERNAME`. Leave empty only if your MySQL user has no password set (common in local development with `root`).
+<ParamField body="DB_PASSWORD" type="string" default="">
+  The password for `DB_USERNAME`. The `.env.example` default is an empty string, which is common for a local `root` user with no password set. Set a strong password for any shared or production environment.
 
   ```ini
   DB_PASSWORD=a_strong_password
@@ -135,6 +165,14 @@ Eventify uses Laravel's filesystem abstraction to store uploaded event cover ima
 ---
 
 ## Cache & Session
+
+<ParamField body="BROADCAST_DRIVER" type="string" default="log">
+  The driver used for broadcasting real-time events. The default `log` driver writes broadcast events to the application log without requiring any additional infrastructure. Switch to `pusher` or `redis` if you add real-time features.
+
+  ```ini
+  BROADCAST_DRIVER=log
+  ```
+</ParamField>
 
 <ParamField body="CACHE_DRIVER" type="string" default="file">
   The cache backend Laravel uses for application caching. The default `file` driver requires no additional infrastructure and stores cache entries in `storage/framework/cache`. For higher-traffic deployments, consider switching to `redis` or `memcached`.
@@ -224,10 +262,26 @@ Eventify uses Laravel's mail system for transactional emails such as email verif
   ```
 </ParamField>
 
+<ParamField body="MAIL_ENCRYPTION" type="string" default="null">
+  The encryption protocol used for the SMTP connection. Set to `tls` when using port `587` (STARTTLS) or `ssl` when using port `465`. The default `null` sends mail without transport encryption, which is only appropriate for local catch-all tools like Mailpit.
+
+  ```ini
+  MAIL_ENCRYPTION=tls
+  ```
+</ParamField>
+
 <ParamField body="MAIL_FROM_ADDRESS" type="string" default="hello@example.com">
   The email address that appears in the `From:` header of all outgoing mail sent by Eventify.
 
   ```ini
   MAIL_FROM_ADDRESS="no-reply@events.example.com"
+  ```
+</ParamField>
+
+<ParamField body="MAIL_FROM_NAME" type="string" default="${APP_NAME}">
+  The sender name that appears alongside `MAIL_FROM_ADDRESS` in the `From:` header. The default value `"${APP_NAME}"` dynamically inherits whatever you set for `APP_NAME`.
+
+  ```ini
+  MAIL_FROM_NAME="Eventify"
   ```
 </ParamField>

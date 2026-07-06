@@ -63,7 +63,7 @@ Every event is stored in the `events` table. The table is defined by the migrati
 </ResponseField>
 
 <ResponseField name="deleted_at" type="timestamp">
-  Populated by Laravel's soft-delete mechanism. `null` for active events.
+  Column defined by `$table->softDeletes()` in the migration. Note: the `Event` model does not use the `SoftDeletes` trait, so this column is not automatically managed by Eloquent.
 </ResponseField>
 
 The full migration that creates this table:
@@ -265,20 +265,20 @@ See [Categories & Status](/features/categories-and-status) for the full list of 
 
 ---
 
-## Soft Deletes
+## Deleting Events
 
-The `events` table uses Laravel's `softDeletes()` column. When an event is deleted via `DELETE /dashboard/events/delete/{event}`, the `deleted_at` timestamp is populated rather than removing the row from the database:
+Events are deleted via `DELETE /dashboard/events/delete/{event}`, handled by `EventController::destroy()`:
 
 ```php
 public function destroy(string $id)
 {
     $event = Event::findOrFail($id);
-    $event->delete(); // sets deleted_at; row is retained
+    $event->delete();
     return redirect()->route('events.index');
 }
 ```
 
-Soft-deleted events are excluded from all standard Eloquent queries automatically. This preserves ticket records and historical data linked to the event.
+The `events` table migration defines a `deleted_at` column via `$table->softDeletes()`, but the `Event` model does not use the `SoftDeletes` trait. As a result, `$event->delete()` performs a **hard delete** — the row is permanently removed from the database. Ticket records and any other data referencing the deleted event's ID will lose their association.
 
 ---
 
@@ -320,7 +320,7 @@ public function downloadEventReport(Event $event)
 The downloaded file is named `event-{id}.pdf`. The report view receives the full `$event` model instance, including its related location, category, status, and ticket data.
 
 <Note>
-  The PDF report route is not scoped under the `/dashboard` prefix, so it is accessible via a direct URL. However, because the route group does not apply the `auth` middleware, ensure your application-level authentication guards are in place if you want to restrict access.
+  The PDF report route is defined outside the `/dashboard` prefix group and carries no `auth` middleware. It is publicly accessible to any visitor who knows or guesses the event ID. If you want to restrict report downloads to authenticated users, add the `auth` middleware to this route in `routes/web.php`.
 </Note>
 
 ---

@@ -1,5 +1,5 @@
 ---
-title: "Admin User Management in Eventify"
+title: "Admin User Management in the Eventify Admin Dashboard"
 sidebarTitle: "User Management"
 description: "Admins can create, view, edit, and delete user accounts from the Eventify dashboard — including assigning roles and resetting passwords."
 ---
@@ -153,7 +153,7 @@ public function destroy(string $id)
 ```
 
 <Warning>
-  Deletion is immediate and irreversible through the UI. The `users` table schema includes a `softDeletes` column, but `UserController::destroy` calls `$user->delete()` which, without the `SoftDeletes` trait on the `User` model, performs a hard delete. Verify the intended behaviour before removing an account.
+  Deletion is immediate and irreversible through the UI. Although the `users` table schema includes a `deleted_at` column via `softDeletes()`, the `User` model does not use the `SoftDeletes` trait, so `$user->delete()` performs a hard delete and the record cannot be recovered.
 </Warning>
 
 ## User Model Reference

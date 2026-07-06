@@ -1,7 +1,7 @@
 ---
 title: "Dashboard Overview: Manage Your Events and Tickets"
 sidebarTitle: "Overview"
-description: "The Eventify dashboard provides authenticated users and admins a central place to manage events, view tickets, and access analytics — all behind role-based access."
+description: "The Eventify dashboard is where authenticated users and admins manage events, tickets, and platform settings — all gated by role-based middleware."
 ---
 
 The Eventify dashboard is the operational heart of the platform. Every action that goes beyond browsing — creating and editing events, purchasing and viewing tickets, or administering the platform's users and taxonomies — happens here. Access is protected by both Laravel's built-in `auth` middleware and a custom `role` middleware, ensuring that only authenticated accounts with a recognized role can reach any dashboard route. Depending on whether an account holds the `user` or `admin` role, the set of available sections differs significantly.
@@ -80,10 +80,10 @@ Admins can manage the set of statuses that can be applied to events (for example
 The `/chart-data` endpoint is a public JSON endpoint that powers the analytics charts rendered on the dashboard home view. It returns three datasets in a single response:
 
 - **`resumen`** — total counts for events, users, and tickets.
-- **`eventosConMasAsistentes`** — the top 5 events by attendee count (name + attendee total).
-- **`eventosPorCategoria`** — event count grouped and ordered by category name.
+- **`eventosConMasAsistentes`** — the top 5 events by attendee count (`name` and `attendees` fields).
+- **`eventosPorCategoria`** — event count grouped and ordered by category name (`name` and `total` fields).
 
-```php
+```http
 GET /chart-data
 ```
 

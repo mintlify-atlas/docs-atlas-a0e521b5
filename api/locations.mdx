@@ -1,7 +1,7 @@
 ---
-title: "REST API Endpoint for Locations"
+title: "Eventify Locations API — Read-Only Endpoint Reference"
 sidebarTitle: "Locations"
-description: "Read-only REST API for Eventify locations. GET /api/locations returns all location records including address, city, region, country, and geocoded coordinates."
+description: "Read-only REST API for Eventify locations. GET /api/locations returns all venues with address, city, region, country, and geocoded coordinates."
 ---
 
 Locations store the physical venue information for Eventify events — street address, city, region, country, and optional geocoded latitude/longitude coordinates. The locations API exposes a single read-only endpoint that returns the full list of available location records. Events reference a location via their `location_id` foreign key, and the location object is eager-loaded whenever you fetch event data through the Events API.

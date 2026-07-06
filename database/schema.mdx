@@ -174,9 +174,9 @@ The table below summarises every Eloquent relationship implied by the foreign ke
 | `Event`      | `hasMany`         | `Ticket`                                  |
 | `Ticket`     | `belongsTo`       | `User`, `Event`                           |
 | `Category`   | `hasMany`         | `Event`                                   |
-| `Location`   | `hasOne`          | `Event`                                   |
+| `Location`   | `hasMany`         | `Event`                                   |
 | `Status`     | `hasMany`         | `Event`                                   |
 
 <Note>
-  All tables except `roles` and `categories` that carry a `deleted_at` column use Laravel's **SoftDeletes** trait. Soft-deleted rows are excluded from standard queries but remain in the database and can be restored at any time.
+  Every table in the Eventify schema carries a `deleted_at` column and uses Laravel's **SoftDeletes** trait. Soft-deleted rows are excluded from standard queries but remain in the database and can be restored at any time.
 </Note>

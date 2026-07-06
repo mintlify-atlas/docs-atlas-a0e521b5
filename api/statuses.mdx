@@ -1,7 +1,7 @@
 ---
-title: "REST API Endpoint for Event Statuses"
+title: "Eventify Statuses API — Read-Only Endpoint Reference"
 sidebarTitle: "Statuses"
-description: "Read-only REST API for Eventify event statuses. GET /api/statuses returns all status records — Disponible, Agotado, and Finalizado — used to classify event availability."
+description: "Read-only REST API for Eventify statuses. GET /api/statuses returns Disponible, Agotado, and Finalizado records used to classify event availability."
 ---
 
 Statuses represent the availability state of an event at any given moment. Eventify ships with three seeded status values — **Disponible** (available), **Agotado** (sold out), and **Finalizado** (finished) — and every event record references one of these via its `status_id` foreign key. The statuses API exposes a single read-only endpoint that returns the full list of status records so that client applications can resolve status IDs to their human-readable names, render availability badges, or build filter controls.
