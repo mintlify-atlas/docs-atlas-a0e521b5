@@ -1,0 +1,377 @@
+---
+title: "Event Management: Create, Edit, and Promote Events"
+sidebarTitle: "Events"
+description: "Manage the full event lifecycle in Eventify — create events with images and geolocation, set capacity and pricing, edit details, and generate PDF reports."
+---
+
+Events are the core entity in Eventify. Each event record brings together a name, rich description, cover image, pricing, capacity tracking, a geocoded location, and metadata such as category and status — giving organizers a complete picture of every event they run and giving attendees everything they need to discover and attend.
+
+## Event Model Fields
+
+Every event is stored in the `events` table. The table is defined by the migration below and the corresponding `Event` Eloquent model.
+
+<ResponseField name="id" type="bigint" required>
+  Auto-incrementing primary key.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Public-facing title of the event.
+</ResponseField>
+
+<ResponseField name="description" type="text" required>
+  Full description of the event shown on the event detail page.
+</ResponseField>
+
+<ResponseField name="img_url" type="string" required>
+  Relative storage path to the event's cover image (e.g. `images/example.jpg`). Served via the `public` disk.
+</ResponseField>
+
+<ResponseField name="capacity" type="integer" required>
+  Remaining tickets available for purchase. Decremented on each ticket sale.
+</ResponseField>
+
+<ResponseField name="attendees" type="integer">
+  Running count of tickets sold. Incremented on each ticket sale. Defaults to `0`.
+</ResponseField>
+
+<ResponseField name="price" type="integer" required>
+  Ticket price in the application's base currency unit.
+</ResponseField>
+
+<ResponseField name="start_date" type="datetime" required>
+  Date and time the event begins.
+</ResponseField>
+
+<ResponseField name="end_date" type="datetime" required>
+  Date and time the event ends.
+</ResponseField>
+
+<ResponseField name="user_id" type="bigint">
+  Foreign key referencing the `users` table. Set to `null` if the owning user is deleted.
+</ResponseField>
+
+<ResponseField name="location_id" type="bigint">
+  Foreign key referencing the `locations` table. Set to `null` if the location is deleted.
+</ResponseField>
+
+<ResponseField name="category_id" type="bigint">
+  Foreign key referencing the `categories` table. Set to `null` if the category is deleted.
+</ResponseField>
+
+<ResponseField name="status_id" type="bigint">
+  Foreign key referencing the `statuses` table. Defaults to `1` (Disponible). Set to `null` if the status is deleted.
+</ResponseField>
+
+<ResponseField name="deleted_at" type="timestamp">
+  Populated by Laravel's soft-delete mechanism. `null` for active events.
+</ResponseField>
+
+The full migration that creates this table:
+
+```php
+Schema::create('events', function (Blueprint $table) {
+    $table->id();
+
+    $table->unsignedBigInteger('user_id')->nullable();
+    $table->foreign('user_id')->references('id')->on('users')->onDelete('set null');
+
+    $table->unsignedBigInteger('status_id')->default(1)->nullable();
+    $table->foreign('status_id')->references('id')->on('statuses')->onDelete('set null');
+
+    $table->unsignedBigInteger('location_id')->nullable();
+    $table->foreign('location_id')->references('id')->on('locations')->onDelete('set null');
+
+    $table->unsignedBigInteger('category_id')->nullable();
+    $table->foreign('category_id')->references('id')->on('categories')->onDelete('set null');
+
+    $table->string('name');
+    $table->text('description');
+    $table->string('img_url');
+    $table->integer('capacity');
+    $table->integer('attendees')->default(0);
+    $table->integer('price');
+    $table->dateTime('start_date');
+    $table->dateTime('end_date');
+    $table->softDeletes();
+    $table->timestamps();
+});
+```
+
+---
+
+## Creating Events
+
+Authenticated users (and admins) create events through the dashboard at `GET /dashboard/events/create`. The creation form collects the following fields:
+
+| Form Field | Input Name | Description |
+|---|---|---|
+| Event Name | `eventName` | Title of the event |
+| Description | `eventDescription` | Full event description |
+| Cover Image | `eventImage` | Image file upload |
+| Category | `eventCategory` | ID from the categories table |
+| Capacity | `eventCapacity` | Total ticket supply |
+| Price | `eventPrice` | Per-ticket price |
+| Start Date | `eventStartDate` | Datetime the event begins |
+| End Date | `eventEndDate` | Datetime the event ends |
+| Street Address | `eventAddress` | Street-level address |
+| City | `eventCity` | City name |
+| Region | `eventRegion` | State, province, or region |
+| Country | `eventCountry` | Country name |
+
+When the form is submitted to `POST /dashboard/events/store`, `EventController::store()` runs the following sequence:
+
+<Steps>
+  <Step title="Create the Location record">
+    A new `Location` is instantiated and populated with `country`, `city`, `region`, and `address` from the request.
+  </Step>
+  <Step title="Geocode the address via Nominatim">
+    The controller builds a combined address string (`address, city`) and issues a GET request to the Nominatim OpenStreetMap API using a Guzzle HTTP client:
+
+    ```php
+    $fullAddress = $location->address . ', ' . $location->city;
+
+    $client = new Client();
+    $url = "https://nominatim.openstreetmap.org/search?q="
+        . urlencode($fullAddress)
+        . "&format=json&limit=1";
+
+    $response = $client->request('GET', $url, [
+        'headers' => ['User-Agent' => 'eventify-app']
+    ]);
+
+    $data = json_decode($response->getBody(), true);
+
+    if (!empty($data)) {
+        $location->latitude  = $data[0]['lat'];
+        $location->longitude = $data[0]['lon'];
+    } else {
+        $location->latitude  = null;
+        $location->longitude = null;
+    }
+    ```
+
+    Coordinates are stored on the `Location` record. If the Nominatim lookup returns no results, `latitude` and `longitude` are saved as `null`.
+  </Step>
+  <Step title="Save the Location">
+    `$location->save()` persists the record and provides the `id` needed for the foreign key.
+  </Step>
+  <Step title="Build the Event">
+    A new `Event` is instantiated and all form fields are assigned, including `user_id` from `auth()->id()` and `location_id` from the saved location.
+  </Step>
+  <Step title="Upload the cover image">
+    If an image was included in the request, it is stored in the `public` disk under the `images/` directory:
+
+    ```php
+    if ($request->hasFile('eventImage')) {
+        $path = $request->file('eventImage')->store('images', 'public');
+        $event->img_url = $path;
+    }
+    ```
+  </Step>
+  <Step title="Auto-assign status">
+    The event's status is determined automatically based on the initial capacity:
+
+    ```php
+    if ($event->capacity > 0) {
+        $event->status_id = 1; // Disponible
+    } else {
+        $event->status_id = 2; // Agotado
+    }
+    ```
+  </Step>
+  <Step title="Save the Event">
+    `$event->save()` persists the record, and the user is redirected to `/dashboard/events` with a success message.
+  </Step>
+</Steps>
+
+<Warning>
+  Image uploads require that you have created a symbolic link from `public/storage` to `storage/app/public`. Run the following command once after deployment:
+
+  ```bash
+  php artisan storage:link
+  ```
+
+  Without this link, uploaded cover images will not be publicly accessible.
+</Warning>
+
+---
+
+## Editing Events
+
+Organizers can edit their events via `GET /dashboard/events/edit/{event}`, which loads the edit form pre-populated with the existing values. Changes are submitted via `PATCH /dashboard/events/{event}`, handled by `EventController::update()`.
+
+The update logic handles two important cases:
+
+**Image replacement** — If a new image file is uploaded, the controller deletes the old image from storage before saving the new one:
+
+```php
+if ($request->hasFile('eventImage')) {
+    if ($event->img_url) {
+        Storage::delete('public/' . $event->img_url);
+    }
+    $path = $request->file('eventImage')->store('events', 'public');
+    $event->img_url = $path;
+}
+```
+
+**Geocoding on address change** — The controller compares the incoming address and city values against the current `Location` record. Re-geocoding is triggered only when something has actually changed, avoiding unnecessary API calls:
+
+```php
+$addressChanged = $location->address !== $request->input('eventAddress')
+               || $location->city    !== $request->input('eventCity');
+
+if ($addressChanged) {
+    $fullAddress = $location->address . ', ' . $location->city;
+
+    $client = new Client();
+    $url = "https://nominatim.openstreetmap.org/search?q="
+        . urlencode($fullAddress)
+        . "&format=json&limit=1";
+
+    $response = $client->request('GET', $url, [
+        'headers' => ['User-Agent' => 'eventify-app']
+    ]);
+
+    $data = json_decode($response->getBody(), true);
+
+    if (!empty($data)) {
+        $location->latitude  = $data[0]['lat'];
+        $location->longitude = $data[0]['lon'];
+    } else {
+        $location->latitude  = null;
+        $location->longitude = null;
+    }
+}
+```
+
+<Tip>
+  On the edit form, admins can also manually override the `status_id` field — for example, to mark an event as **Finalizado** after it has concluded.
+</Tip>
+
+---
+
+## Event Status
+
+Status is automatically managed by the application and reflects the current availability of an event. The assignment logic is applied both at creation time and during ticket purchases:
+
+| Condition | `status_id` | Label |
+|---|---|---|
+| Created with `capacity > 0` | `1` | Disponible |
+| Created with `capacity == 0` | `2` | Agotado |
+| Last ticket sold (capacity reaches `0`) | `2` | Agotado |
+| Manually set by admin after the event | `3` | Finalizado |
+
+See [Categories & Status](/features/categories-and-status) for the full list of status labels and their meanings.
+
+---
+
+## Soft Deletes
+
+The `events` table uses Laravel's `softDeletes()` column. When an event is deleted via `DELETE /dashboard/events/delete/{event}`, the `deleted_at` timestamp is populated rather than removing the row from the database:
+
+```php
+public function destroy(string $id)
+{
+    $event = Event::findOrFail($id);
+    $event->delete(); // sets deleted_at; row is retained
+    return redirect()->route('events.index');
+}
+```
+
+Soft-deleted events are excluded from all standard Eloquent queries automatically. This preserves ticket records and historical data linked to the event.
+
+---
+
+## Explore Page
+
+The public `/explore` route displays all events to unauthenticated and authenticated visitors alike. Events are ordered from newest to oldest:
+
+```php
+public function showExplore()
+{
+    $events = Event::orderBy('created_at', 'desc')->get();
+    return view('explore', compact('events'));
+}
+```
+
+The home page (`/`) uses the same ordering logic via `showHome()`, providing a consistent discovery experience across both surfaces.
+
+---
+
+## PDF Reports
+
+Authenticated users can download a PDF summary of any event by visiting:
+
+```
+GET /events/{event}/report
+```
+
+The `EventController::downloadEventReport()` method loads the `reports.event-report` Blade view and streams it as a PDF download using the DomPDF library:
+
+```php
+public function downloadEventReport(Event $event)
+{
+    $data = compact('event');
+    $pdf  = Pdf::loadView('reports.event-report', $data);
+    return $pdf->download('event-' . $event->id . '.pdf');
+}
+```
+
+The downloaded file is named `event-{id}.pdf`. The report view receives the full `$event` model instance, including its related location, category, status, and ticket data.
+
+<Note>
+  The PDF report route is not scoped under the `/dashboard` prefix, so it is accessible via a direct URL. However, because the route group does not apply the `auth` middleware, ensure your application-level authentication guards are in place if you want to restrict access.
+</Note>
+
+---
+
+## Relationships
+
+The `Event` model declares the following Eloquent relationships:
+
+```php
+// Event belongs to the user who created it
+public function user()
+{
+    return $this->belongsTo(User::class);
+}
+
+// Event belongs to a location (geocoded address)
+public function location()
+{
+    return $this->belongsTo(Location::class);
+}
+
+// Event belongs to a category
+public function category()
+{
+    return $this->belongsTo(Category::class);
+}
+
+// Event belongs to a status
+public function status()
+{
+    return $this->belongsTo(Status::class);
+}
+
+// Event has many tickets
+public function tickets()
+{
+    return $this->hasMany(Ticket::class);
+}
+```
+
+<CardGroup cols={2}>
+  <Card title="User" icon="user">
+    The organizer who created the event. Foreign key `user_id`; set to `null` on user deletion.
+  </Card>
+  <Card title="Location" icon="map-pin">
+    A dedicated `locations` record holding address, city, region, country, and geocoded latitude/longitude.
+  </Card>
+  <Card title="Category" icon="tag">
+    One of the seeded categories (Musical, Teatro, Deportivo, etc.) used for filtering and discovery.
+  </Card>
+  <Card title="Status" icon="circle-check">
+    Reflects current availability — Disponible, Agotado, or Finalizado.
+  </Card>
+</CardGroup>

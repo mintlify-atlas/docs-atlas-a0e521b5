@@ -1,0 +1,182 @@
+---
+title: "Eventify Database Schema and Table Reference"
+sidebarTitle: "Schema"
+description: "Complete reference for all Eventify database tables — roles, users, locations, categories, statuses, events, and tickets — with column types and foreign key relationships."
+---
+
+Eventify's MySQL database is built around seven tables that together model every aspect of event management: who can log in and what they're allowed to do, where events take place, how they're categorised and tracked, and which attendees hold tickets. The schema is managed entirely through Laravel migrations, so every structural change is version-controlled and reproducible. Run all migrations — and optionally seed sample data at the same time — with a single Artisan command:
+
+```bash
+php artisan migrate:fresh --seed
+```
+
+<Note>
+  The tables below are listed in dependency order. Each table that holds a foreign key is introduced after the table it references, matching the order in which Laravel applies the migrations.
+</Note>
+
+---
+
+## roles
+
+The `roles` table defines the two access levels in Eventify — **Administrator** and **User** — and is the first table created because `users` depends on it.
+
+| Column        | Type           | Nullable | Default | Description                                              |
+|---------------|----------------|----------|---------|----------------------------------------------------------|
+| `id`          | `bigint` (PK)  | No       | —       | Auto-incrementing primary key.                           |
+| `name`        | `varchar(255)` | No       | —       | Human-readable role name (e.g. `Administrator`).         |
+| `label`       | `varchar(255)` | No       | —       | Short machine-friendly label (e.g. `admin`, `user`).     |
+| `description` | `varchar(255)` | Yes      | `NULL`  | Optional description of what the role permits.           |
+| `deleted_at`  | `timestamp`    | Yes      | `NULL`  | Soft-delete timestamp; `NULL` means the record is active.|
+| `created_at`  | `timestamp`    | Yes      | `NULL`  | Set automatically by Laravel on insert.                  |
+| `updated_at`  | `timestamp`    | Yes      | `NULL`  | Set automatically by Laravel on update.                  |
+
+---
+
+## users
+
+The `users` table stores every registered account. Each user is assigned a role via `role_id`, which defaults to `2` (the regular **User** role). Soft deletes allow accounts to be deactivated without losing historical records such as tickets.
+
+| Column              | Type           | Nullable | Default | Description                                                    |
+|---------------------|----------------|----------|---------|----------------------------------------------------------------|
+| `id`                | `bigint` (PK)  | No       | —       | Auto-incrementing primary key.                                 |
+| `name`              | `varchar(255)` | No       | —       | Display name of the user.                                      |
+| `email`             | `varchar(255)` | No       | —       | Unique email address used for login.                           |
+| `email_verified_at` | `timestamp`    | Yes      | `NULL`  | When the email address was verified; `NULL` if unverified.     |
+| `password`          | `varchar(255)` | No       | —       | Bcrypt-hashed password.                                        |
+| `role_id`           | `bigint` (FK)  | No       | `2`     | References `roles.id`; defaults to the regular user role.      |
+| `remember_token`    | `varchar(100)` | Yes      | `NULL`  | Laravel "remember me" token for persistent sessions.           |
+| `created_at`        | `timestamp`    | Yes      | `NULL`  | Set automatically by Laravel on insert.                        |
+| `updated_at`        | `timestamp`    | Yes      | `NULL`  | Set automatically by Laravel on update.                        |
+| `deleted_at`        | `timestamp`    | Yes      | `NULL`  | Soft-delete timestamp; `NULL` means the account is active.     |
+
+**Foreign keys**
+
+| Column    | References  | On delete  |
+|-----------|-------------|------------|
+| `role_id` | `roles.id`  | No action  |
+
+---
+
+## statuses
+
+The `statuses` table is a simple lookup table whose values drive the availability label shown on every event listing. Soft deletes let an administrator retire a status value without breaking historical event records.
+
+| Column       | Type           | Nullable | Default | Description                                               |
+|--------------|----------------|----------|---------|-----------------------------------------------------------|
+| `id`         | `bigint` (PK)  | No       | —       | Auto-incrementing primary key.                            |
+| `name`       | `varchar(255)` | No       | —       | Status label (e.g. `Disponible`, `Agotado`, `Finalizado`).|
+| `created_at` | `timestamp`    | Yes      | `NULL`  | Set automatically by Laravel on insert.                   |
+| `updated_at` | `timestamp`    | Yes      | `NULL`  | Set automatically by Laravel on update.                   |
+| `deleted_at` | `timestamp`    | Yes      | `NULL`  | Soft-delete timestamp; `NULL` means the status is active. |
+
+---
+
+## locations
+
+The `locations` table records the physical venue of an event. Latitude and longitude are optional: they are populated by the factory during seeding but may be left blank when an event is created manually without geocoding.
+
+| Column       | Type                  | Nullable | Default | Description                                              |
+|--------------|-----------------------|----------|---------|----------------------------------------------------------|
+| `id`         | `bigint` (PK)         | No       | —       | Auto-incrementing primary key.                           |
+| `address`    | `varchar(255)`        | No       | —       | Street address of the venue.                             |
+| `city`       | `varchar(255)`        | No       | —       | City where the venue is located.                         |
+| `region`     | `varchar(255)`        | No       | —       | State, province, or region.                              |
+| `country`    | `varchar(255)`        | No       | —       | Country name.                                            |
+| `latitude`   | `decimal(10, 7)`      | Yes      | `NULL`  | Geographic latitude in decimal degrees.                  |
+| `longitude`  | `decimal(10, 7)`      | Yes      | `NULL`  | Geographic longitude in decimal degrees.                 |
+| `created_at` | `timestamp`           | Yes      | `NULL`  | Set automatically by Laravel on insert.                  |
+| `updated_at` | `timestamp`           | Yes      | `NULL`  | Set automatically by Laravel on update.                  |
+| `deleted_at` | `timestamp`           | Yes      | `NULL`  | Soft-delete timestamp; `NULL` means the record is active.|
+
+---
+
+## categories
+
+The `categories` table organises events by type. Each event belongs to exactly one category, making it straightforward to filter listings by genre or theme.
+
+| Column       | Type           | Nullable | Default | Description                                               |
+|--------------|----------------|----------|---------|-----------------------------------------------------------|
+| `id`         | `bigint` (PK)  | No       | —       | Auto-incrementing primary key.                            |
+| `name`       | `varchar(255)` | No       | —       | Category name (e.g. `Musical`, `Deportivo`, `Familiar`).  |
+| `created_at` | `timestamp`    | Yes      | `NULL`  | Set automatically by Laravel on insert.                   |
+| `updated_at` | `timestamp`    | Yes      | `NULL`  | Set automatically by Laravel on update.                   |
+| `deleted_at` | `timestamp`    | Yes      | `NULL`  | Soft-delete timestamp; `NULL` means the category is active.|
+
+---
+
+## events
+
+The `events` table is the central table of Eventify. Every event is owned by a user, assigned a status, placed at a location, and organised under a category. Foreign keys are set to `ON DELETE SET NULL` so that removing a related record does not cascade-delete the event itself — the event simply loses its association.
+
+| Column        | Type           | Nullable | Default | Description                                                         |
+|---------------|----------------|----------|---------|---------------------------------------------------------------------|
+| `id`          | `bigint` (PK)  | No       | —       | Auto-incrementing primary key.                                      |
+| `user_id`     | `bigint` (FK)  | Yes      | `NULL`  | The organiser; references `users.id`. Set null on user deletion.    |
+| `status_id`   | `bigint` (FK)  | Yes      | `1`     | Current availability; references `statuses.id`. Set null on delete. |
+| `location_id` | `bigint` (FK)  | Yes      | `NULL`  | Venue; references `locations.id`. Set null on location deletion.    |
+| `category_id` | `bigint` (FK)  | Yes      | `NULL`  | Genre/type; references `categories.id`. Set null on deletion.       |
+| `name`        | `varchar(255)` | No       | —       | Event title.                                                        |
+| `description` | `text`         | No       | —       | Full event description.                                             |
+| `img_url`     | `varchar(255)` | No       | —       | Path to the event's cover image in public storage.                  |
+| `capacity`    | `int`          | No       | —       | Maximum number of attendees allowed.                                |
+| `attendees`   | `int`          | No       | `0`     | Running count of registered attendees; starts at zero.              |
+| `price`       | `int`          | No       | —       | Ticket price in the application's base currency unit.               |
+| `start_date`  | `datetime`     | No       | —       | Date and time when the event begins.                                |
+| `end_date`    | `datetime`     | No       | —       | Date and time when the event concludes.                             |
+| `deleted_at`  | `timestamp`    | Yes      | `NULL`  | Soft-delete timestamp; `NULL` means the event is active.            |
+| `created_at`  | `timestamp`    | Yes      | `NULL`  | Set automatically by Laravel on insert.                             |
+| `updated_at`  | `timestamp`    | Yes      | `NULL`  | Set automatically by Laravel on update.                             |
+
+**Foreign keys**
+
+| Column        | References       | On delete  |
+|---------------|------------------|------------|
+| `user_id`     | `users.id`       | SET NULL   |
+| `status_id`   | `statuses.id`    | SET NULL   |
+| `location_id` | `locations.id`   | SET NULL   |
+| `category_id` | `categories.id`  | SET NULL   |
+
+---
+
+## tickets
+
+The `tickets` table records every purchase or reservation made by a user for a specific event. The `quantity` column allows a single transaction to cover multiple seats. Both `user_id` and `event_id` are required — tickets cannot be orphaned — and soft deletes support cancellation workflows without permanent data loss.
+
+| Column       | Type          | Nullable | Default | Description                                               |
+|--------------|---------------|----------|---------|-----------------------------------------------------------|
+| `id`         | `bigint` (PK) | No       | —       | Auto-incrementing primary key.                            |
+| `user_id`    | `bigint` (FK) | No       | —       | The purchasing user; references `users.id`.               |
+| `event_id`   | `bigint` (FK) | No       | —       | The event being attended; references `events.id`.         |
+| `quantity`   | `int`         | No       | —       | Number of seats/tickets included in this record.          |
+| `deleted_at` | `timestamp`   | Yes      | `NULL`  | Soft-delete timestamp; `NULL` means the ticket is active. |
+| `created_at` | `timestamp`   | Yes      | `NULL`  | Set automatically by Laravel on insert.                   |
+| `updated_at` | `timestamp`   | Yes      | `NULL`  | Set automatically by Laravel on update.                   |
+
+**Foreign keys**
+
+| Column     | References  | On delete  |
+|------------|-------------|------------|
+| `user_id`  | `users.id`  | No action  |
+| `event_id` | `events.id` | No action  |
+
+---
+
+## Relationships
+
+The table below summarises every Eloquent relationship implied by the foreign keys above.
+
+| Model        | Relationship type | Related model(s)                          |
+|--------------|-------------------|-------------------------------------------|
+| `User`       | `belongsTo`       | `Role`                                    |
+| `User`       | `hasMany`         | `Event`, `Ticket`                         |
+| `Role`       | `hasMany`         | `User`                                    |
+| `Event`      | `belongsTo`       | `User`, `Location`, `Category`, `Status`  |
+| `Event`      | `hasMany`         | `Ticket`                                  |
+| `Ticket`     | `belongsTo`       | `User`, `Event`                           |
+| `Category`   | `hasMany`         | `Event`                                   |
+| `Location`   | `hasOne`          | `Event`                                   |
+| `Status`     | `hasMany`         | `Event`                                   |
+
+<Note>
+  All tables except `roles` and `categories` that carry a `deleted_at` column use Laravel's **SoftDeletes** trait. Soft-deleted rows are excluded from standard queries but remain in the database and can be restored at any time.
+</Note>

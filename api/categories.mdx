@@ -1,0 +1,210 @@
+---
+title: "REST API Endpoints for Categories"
+sidebarTitle: "Categories"
+description: "CRUD REST API for Eventify event categories. GET, POST, PUT, DELETE /api/category — categories have a single name field and are used to classify events."
+---
+
+Categories provide a simple classification layer for events in Eventify. Each category has only a `name` field, keeping the resource lightweight and easy to manage. Events reference a category via their `category_id` foreign key, and the category object is included as an eager-loaded relation whenever you fetch event data through the Events API. Use the five endpoints below to list, retrieve, create, update, and delete categories.
+
+---
+
+## The category object
+
+<ResponseField name="id" type="integer">
+  Auto-incremented primary key uniquely identifying the category.
+</ResponseField>
+<ResponseField name="name" type="string">
+  Human-readable display name for the category (e.g. `"Technology"`, `"Music"`, `"Sports"`).
+</ResponseField>
+<ResponseField name="created_at" type="datetime">
+  ISO 8601 datetime string set automatically when the record is first created.
+</ResponseField>
+<ResponseField name="updated_at" type="datetime">
+  ISO 8601 datetime string updated automatically whenever the record is modified.
+</ResponseField>
+
+---
+
+## GET /api/category
+
+Returns an array of all category records in the database. No filtering, pagination, or sorting parameters are supported — the full collection is always returned.
+
+```bash
+curl http://localhost:8000/api/category \
+  -H "Accept: application/json"
+```
+
+**Response — 200 OK**
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Technology",
+    "created_at": "2024-05-01T00:00:00.000000Z",
+    "updated_at": "2024-05-01T00:00:00.000000Z"
+  },
+  {
+    "id": 2,
+    "name": "Music",
+    "created_at": "2024-05-01T00:00:00.000000Z",
+    "updated_at": "2024-05-01T00:00:00.000000Z"
+  },
+  {
+    "id": 3,
+    "name": "Sports",
+    "created_at": "2024-05-01T00:00:00.000000Z",
+    "updated_at": "2024-05-01T00:00:00.000000Z"
+  }
+]
+```
+
+Returns an empty array `[]` with status `200` when no categories exist.
+
+---
+
+## GET /api/category/\{id\}
+
+Returns a single category identified by its integer `id`.
+
+**Path parameter**
+
+<ParamField path="id" type="integer" required>
+  The unique identifier of the category to retrieve.
+</ParamField>
+
+```bash
+curl http://localhost:8000/api/category/1 \
+  -H "Accept: application/json"
+```
+
+**Response — 200 OK**
+
+```json
+{
+  "id": 1,
+  "name": "Technology",
+  "created_at": "2024-05-01T00:00:00.000000Z",
+  "updated_at": "2024-05-01T00:00:00.000000Z"
+}
+```
+
+**Error responses**
+
+| Status | Body |
+|---|---|
+| `404 Not Found` | `{"message": "Categoria no encontrada"}` |
+
+---
+
+## POST /api/category
+
+Creates a new category. The only required field is `name`. Returns the created category object with HTTP `201 Created`.
+
+**Request body**
+
+<ParamField body="name" type="string" required>
+  Display name for the new category. Maximum 255 characters. Must be a non-empty string.
+</ParamField>
+
+```bash
+curl -X POST http://localhost:8000/api/category \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Art & Culture"}'
+```
+
+**Response — 201 Created**
+
+```json
+{
+  "id": 4,
+  "name": "Art & Culture",
+  "created_at": "2024-05-20T10:00:00.000000Z",
+  "updated_at": "2024-05-20T10:00:00.000000Z"
+}
+```
+
+**Error responses**
+
+| Status | Body |
+|---|---|
+| `422 Unprocessable Entity` | Laravel validation error object — e.g. `name` missing or exceeds 255 characters |
+
+---
+
+## PUT /api/category/\{id\}
+
+Updates an existing category. The `name` field is optional — if omitted, the existing value is preserved. The record is located by `id` before any update is applied.
+
+**Path parameter**
+
+<ParamField path="id" type="integer" required>
+  The unique identifier of the category to update.
+</ParamField>
+
+**Request body**
+
+<ParamField body="name" type="string">
+  New display name for the category. Maximum 255 characters. If provided, must be a non-empty string.
+</ParamField>
+
+```bash
+curl -X PUT http://localhost:8000/api/category/4 \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Arts & Culture"}'
+```
+
+**Response — 200 OK**
+
+```json
+{
+  "id": 4,
+  "name": "Arts & Culture",
+  "created_at": "2024-05-20T10:00:00.000000Z",
+  "updated_at": "2024-05-20T11:45:00.000000Z"
+}
+```
+
+**Error responses**
+
+| Status | Body |
+|---|---|
+| `404 Not Found` | `{"message": "Categoria no encontrada"}` |
+| `422 Unprocessable Entity` | Laravel validation error object |
+
+---
+
+## DELETE /api/category/\{id\}
+
+Permanently deletes the category with the given ID.
+
+**Path parameter**
+
+<ParamField path="id" type="integer" required>
+  The unique identifier of the category to delete.
+</ParamField>
+
+```bash
+curl -X DELETE http://localhost:8000/api/category/4 \
+  -H "Accept: application/json"
+```
+
+**Response — 200 OK**
+
+```json
+{
+  "message": "Categoria borrada"
+}
+```
+
+**Error responses**
+
+| Status | Body |
+|---|---|
+| `404 Not Found` | `{"message": "Categoria no encontrada"}` |
+
+<Warning>
+  Deleting a category that is currently referenced by one or more events will set those events' `category_id` to `null` (cascade set null behaviour defined in the events migration). Verify that no events are using a category before deleting it if referential integrity matters to your application.
+</Warning>

@@ -1,0 +1,237 @@
+---
+title: "Ticket Purchasing and Management"
+sidebarTitle: "Tickets"
+description: "How Eventify handles ticket purchases — capacity enforcement, attendee tracking, quantity selection, and PDF ticket generation for event-goers."
+---
+
+Tickets connect attendees to events. When a user purchases tickets for an event, Eventify creates a ticket record, deducts the requested quantity from the event's remaining capacity, and increments the attendee count — all in a single atomic operation. If the purchase brings capacity to zero, the event is automatically marked as sold out.
+
+## Ticket Model Fields
+
+Ticket records are stored in the `tickets` table, created by the following migration:
+
+```php
+Schema::create('tickets', function (Blueprint $table) {
+    $table->id();
+    $table->unsignedBigInteger('user_id');
+    $table->unsignedBigInteger('event_id');
+    $table->integer('quantity');
+    $table->softDeletes();
+    $table->timestamps();
+
+    $table->foreign('user_id')->references('id')->on('users');
+    $table->foreign('event_id')->references('id')->on('events');
+});
+```
+
+<ResponseField name="id" type="bigint" required>
+  Auto-incrementing primary key.
+</ResponseField>
+
+<ResponseField name="user_id" type="bigint" required>
+  Foreign key referencing the `users` table. Identifies the purchaser.
+</ResponseField>
+
+<ResponseField name="event_id" type="bigint" required>
+  Foreign key referencing the `events` table. Identifies the event the ticket is for.
+</ResponseField>
+
+<ResponseField name="quantity" type="integer" required>
+  Number of individual tickets purchased in this transaction.
+</ResponseField>
+
+<ResponseField name="deleted_at" type="timestamp">
+  Populated by Laravel's soft-delete mechanism when a ticket record is soft-deleted. `null` for active tickets.
+</ResponseField>
+
+---
+
+## Purchasing Tickets
+
+Tickets are purchased by submitting a form on the event detail page to:
+
+```
+POST /dashboard/tickets/store
+```
+
+This route is protected by the `auth` middleware — users must be logged in to purchase tickets.
+
+The purchase flow handled by `TicketController::store()` runs as follows:
+
+<Steps>
+  <Step title="Locate the event">
+    The controller retrieves the target event using the `event_id` from the request:
+
+    ```php
+    $event = Event::find($request->event_id);
+    ```
+  </Step>
+  <Step title="Enforce capacity">
+    Before creating any record, the controller validates that the requested quantity can be fulfilled:
+
+    ```php
+    if ($event->capacity < $request->quantity || $event->capacity == 0) {
+        return redirect()->back()->with('error', 'No hay tickets disponibles');
+    }
+    ```
+
+    If the event has no remaining capacity, or the requested quantity exceeds what's left, the request is rejected and the user is redirected back with an error message.
+  </Step>
+  <Step title="Create the ticket record">
+    A new `Ticket` is instantiated and saved with the quantity, event ID, and the authenticated user's ID:
+
+    ```php
+    $ticket = new Ticket;
+    $ticket->quantity = $request->quantity;
+    $ticket->event_id = $request->event_id;
+    $ticket->user_id  = auth()->id();
+    $ticket->save();
+    ```
+  </Step>
+  <Step title="Update event capacity and attendance">
+    The event's `capacity` is decremented and `attendees` is incremented by the purchased quantity:
+
+    ```php
+    $event->capacity  -= $request->quantity;
+    $event->attendees += $request->quantity;
+    ```
+  </Step>
+  <Step title="Mark as sold out if needed">
+    If the purchase brings `capacity` exactly to zero, the event's status is automatically changed to **Agotado** (`status_id = 2`):
+
+    ```php
+    if ($event->capacity == 0) {
+        $event->status_id = 2;
+    }
+
+    $event->save();
+    ```
+  </Step>
+  <Step title="Redirect with confirmation">
+    The user is redirected back to the event page with a success message:
+
+    ```
+    Ticket comprado con éxito! Gracias por tu compra
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Capacity Enforcement
+
+The capacity check is the central guard that prevents overselling. The condition covers two distinct failure scenarios:
+
+```php
+if ($event->capacity < $request->quantity || $event->capacity == 0) {
+    return redirect()->back()->with('error', 'No hay tickets disponibles');
+}
+```
+
+| Scenario | Condition triggered | Result |
+|---|---|---|
+| User requests more tickets than are left | `$event->capacity < $request->quantity` | Redirect with error |
+| Event is already sold out | `$event->capacity == 0` | Redirect with error |
+| Sufficient tickets remain | Neither condition | Purchase proceeds |
+
+<Warning>
+  The capacity check does not use a database-level lock. In high-concurrency scenarios, two users submitting requests simultaneously could both pass the check before either write completes. For production deployments with high-demand events, consider wrapping the purchase logic in a database transaction with a pessimistic lock (e.g., `lockForUpdate()`).
+</Warning>
+
+---
+
+## My Tickets Dashboard
+
+Authenticated users can view all their ticket purchases at:
+
+```
+GET /dashboard/tickets
+```
+
+The `TicketController::showMyTickets()` method returns tickets belonging to the currently authenticated user, ordered from most recent to oldest:
+
+```php
+public function showMyTickets()
+{
+    $tickets = Ticket::where('user_id', auth()->id())
+                     ->orderBy('created_at', 'desc')
+                     ->get();
+
+    return view('dashboard.tickets.tickets-management', compact('tickets'));
+}
+```
+
+Each ticket in the list is linked to its parent event via the `event` relationship, giving the view access to the event name, dates, location, and price for display.
+
+---
+
+## PDF Ticket Report
+
+Each ticket purchase can be downloaded as a PDF. The report is generated on demand at:
+
+```
+GET /dashboard/tickets/{id}/report
+```
+
+The `TicketController::generateTicket()` method loads the full ticket with its associated event and user, parses the event dates using Carbon, calculates the total cost, and renders a Blade view as a downloadable PDF:
+
+```php
+public function generateTicket($id)
+{
+    $ticket = Ticket::with('event')->findOrFail($id);
+    $event  = $ticket->event;
+    $user   = $ticket->user;
+
+    // Parse dates for formatted display
+    $event->start_date = Carbon::parse($event->start_date);
+    $event->end_date   = Carbon::parse($event->end_date);
+
+    // Calculate total cost
+    $total = $ticket->quantity * $event->price;
+
+    // Render and stream the PDF
+    $pdf = PDF::loadView('reports.ticket-report', compact('ticket', 'event', 'user', 'total'));
+
+    return $pdf->download('ticket.pdf');
+}
+```
+
+The generated PDF (`ticket.pdf`) includes:
+
+- Event name, start date, and end date (Carbon-formatted)
+- Ticket quantity
+- Per-ticket price and calculated total
+- Purchasing user details
+
+<Note>
+  Ticket editing and deletion are not supported through the UI. The `edit`, `update`, and `destroy` methods exist as stubs in `TicketController` but contain no implementation. Only purchasing (via `store`) and PDF download (via `generateTicket`) are available to end users.
+</Note>
+
+---
+
+## Relationships
+
+The `Ticket` model declares the following Eloquent relationships:
+
+```php
+// Ticket belongs to the purchasing user
+public function user()
+{
+    return $this->belongsTo(User::class);
+}
+
+// Ticket belongs to the event it was purchased for
+public function event()
+{
+    return $this->belongsTo(Event::class);
+}
+```
+
+<CardGroup cols={2}>
+  <Card title="User" icon="user">
+    The authenticated user who purchased the ticket. Used on the dashboard to scope each user's ticket list.
+  </Card>
+  <Card title="Event" icon="calendar">
+    The event the ticket is for. Eagerly loaded when generating the PDF report to provide name, dates, price, and location.
+  </Card>
+</CardGroup>

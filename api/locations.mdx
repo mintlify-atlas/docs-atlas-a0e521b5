@@ -1,0 +1,100 @@
+---
+title: "REST API Endpoint for Locations"
+sidebarTitle: "Locations"
+description: "Read-only REST API for Eventify locations. GET /api/locations returns all location records including address, city, region, country, and geocoded coordinates."
+---
+
+Locations store the physical venue information for Eventify events — street address, city, region, country, and optional geocoded latitude/longitude coordinates. The locations API exposes a single read-only endpoint that returns the full list of available location records. Events reference a location via their `location_id` foreign key, and the location object is eager-loaded whenever you fetch event data through the Events API.
+
+<Note>
+  Locations are created automatically when an event is created through the Eventify web UI — they are not directly creatable or modifiable via the API. To associate a location with an event via the API, first create the event through the web interface (which creates the location record), then retrieve the location's `id` from `GET /api/locations` and supply it in your `POST /api/event` or `PUT /api/event/{id}` request.
+</Note>
+
+---
+
+## The location object
+
+<ResponseField name="id" type="integer">
+  Auto-incremented primary key uniquely identifying the location.
+</ResponseField>
+<ResponseField name="address" type="string">
+  Street address of the venue (e.g. `"Calle Gran Vía 28"`).
+</ResponseField>
+<ResponseField name="city" type="string">
+  City where the venue is located (e.g. `"Madrid"`).
+</ResponseField>
+<ResponseField name="region" type="string">
+  Administrative region or state (e.g. `"Community of Madrid"`).
+</ResponseField>
+<ResponseField name="country" type="string">
+  Country where the venue is located (e.g. `"Spain"`).
+</ResponseField>
+<ResponseField name="latitude" type="decimal | null">
+  Geocoded latitude of the venue, stored as a decimal with up to 7 decimal places of precision (e.g. `"40.4168000"`). `null` if geocoding has not been performed or failed.
+</ResponseField>
+<ResponseField name="longitude" type="decimal | null">
+  Geocoded longitude of the venue, stored as a decimal with up to 7 decimal places of precision (e.g. `"-3.7038000"`). `null` if geocoding has not been performed or failed.
+</ResponseField>
+<ResponseField name="created_at" type="datetime">
+  ISO 8601 datetime string set automatically when the record is first created.
+</ResponseField>
+<ResponseField name="updated_at" type="datetime">
+  ISO 8601 datetime string updated automatically whenever the record is modified.
+</ResponseField>
+
+---
+
+## GET /api/locations
+
+Returns an array of all location records in the database. The full collection is always returned — no filtering, pagination, or sorting parameters are supported.
+
+```bash
+curl http://localhost:8000/api/locations \
+  -H "Accept: application/json"
+```
+
+**Response — 200 OK**
+
+```json
+[
+  {
+    "id": 1,
+    "address": "Calle Gran Vía 28",
+    "city": "Madrid",
+    "region": "Community of Madrid",
+    "country": "Spain",
+    "latitude": "40.4200000",
+    "longitude": "-3.7025000",
+    "created_at": "2024-05-05T10:00:00.000000Z",
+    "updated_at": "2024-05-05T10:00:00.000000Z"
+  },
+  {
+    "id": 2,
+    "address": "Passeig de Gràcia 43",
+    "city": "Barcelona",
+    "region": "Catalonia",
+    "country": "Spain",
+    "latitude": "41.3964000",
+    "longitude": "2.1609000",
+    "created_at": "2024-05-06T08:30:00.000000Z",
+    "updated_at": "2024-05-06T08:30:00.000000Z"
+  },
+  {
+    "id": 3,
+    "address": "Calle Sierpes 10",
+    "city": "Seville",
+    "region": "Andalusia",
+    "country": "Spain",
+    "latitude": null,
+    "longitude": null,
+    "created_at": "2024-05-07T09:15:00.000000Z",
+    "updated_at": "2024-05-07T09:15:00.000000Z"
+  }
+]
+```
+
+Returns an empty array `[]` with status `200` when no location records exist.
+
+<Tip>
+  Use the `latitude` and `longitude` values to plot event locations on a map in your frontend. Both fields are nullable — always guard against `null` before passing them to a mapping library.
+</Tip>

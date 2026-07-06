@@ -1,0 +1,80 @@
+---
+title: "REST API Endpoint for Event Statuses"
+sidebarTitle: "Statuses"
+description: "Read-only REST API for Eventify event statuses. GET /api/statuses returns all status records — Disponible, Agotado, and Finalizado — used to classify event availability."
+---
+
+Statuses represent the availability state of an event at any given moment. Eventify ships with three seeded status values — **Disponible** (available), **Agotado** (sold out), and **Finalizado** (finished) — and every event record references one of these via its `status_id` foreign key. The statuses API exposes a single read-only endpoint that returns the full list of status records so that client applications can resolve status IDs to their human-readable names, render availability badges, or build filter controls.
+
+<Note>
+  Statuses are managed by administrators through the Eventify dashboard. Some status transitions are automated by the system: when an event's `capacity` reaches `0` (all tickets sold), the system automatically sets the event's `status_id` to `2` (Agotado). Manual overrides are possible through the admin panel. There is no write endpoint for statuses in the API.
+</Note>
+
+---
+
+## The status object
+
+<ResponseField name="id" type="integer">
+  Auto-incremented primary key uniquely identifying the status.
+</ResponseField>
+<ResponseField name="name" type="string">
+  Human-readable display name for the status (e.g. `"Disponible"`, `"Agotado"`, `"Finalizado"`).
+</ResponseField>
+<ResponseField name="created_at" type="datetime">
+  ISO 8601 datetime string set automatically when the record is first created.
+</ResponseField>
+<ResponseField name="updated_at" type="datetime">
+  ISO 8601 datetime string updated automatically whenever the record is modified.
+</ResponseField>
+
+---
+
+## Seeded statuses
+
+The following three statuses are present in every Eventify installation. Use these IDs when setting `status_id` on event create or update requests.
+
+| ID | Name | Meaning |
+|---|---|---|
+| `1` | **Disponible** | The event is open and tickets are available for purchase. This is the default status assigned to newly created events. |
+| `2` | **Agotado** | All capacity has been filled — the event is sold out. Set automatically by the system when `capacity` reaches `0`. |
+| `3` | **Finalizado** | The event has concluded. Typically applied after the event's `end_date` has passed. |
+
+---
+
+## GET /api/statuses
+
+Returns an array of all status records in the database. The full collection is always returned — no filtering or pagination parameters are supported.
+
+```bash
+curl http://localhost:8000/api/statuses \
+  -H "Accept: application/json"
+```
+
+**Response — 200 OK**
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Disponible",
+    "created_at": "2024-05-01T00:00:00.000000Z",
+    "updated_at": "2024-05-01T00:00:00.000000Z"
+  },
+  {
+    "id": 2,
+    "name": "Agotado",
+    "created_at": "2024-05-01T00:00:00.000000Z",
+    "updated_at": "2024-05-01T00:00:00.000000Z"
+  },
+  {
+    "id": 3,
+    "name": "Finalizado",
+    "created_at": "2024-05-01T00:00:00.000000Z",
+    "updated_at": "2024-05-01T00:00:00.000000Z"
+  }
+]
+```
+
+<Tip>
+  Cache the result of this endpoint at application startup — the statuses list rarely changes, and having the ID-to-name mapping in memory lets you avoid repeated network calls when rendering status labels across many event records.
+</Tip>

@@ -1,0 +1,182 @@
+---
+title: "Event Categories and Status Labels"
+sidebarTitle: "Categories & Status"
+description: "Eventify organizes events into categories like Musical, Deportivo, and Cultural, and tracks availability with status labels — Disponible, Agotado, and Finalizado."
+---
+
+Every event in Eventify is tagged with two orthogonal pieces of metadata: a **category** that describes the type of event, and a **status** that reflects its current availability. Categories help attendees discover events by interest, while statuses are managed partly by the system and partly by admins to communicate whether tickets are still on sale or the event has concluded.
+
+---
+
+## Categories
+
+Categories classify what kind of event is being offered. The application ships with six seeded defaults defined in `CategoryTableSeeder`:
+
+| Category | Description |
+|---|---|
+| **Musical** | Concerts, live music performances, and music festivals |
+| **Teatro** | Theatre productions, plays, and stage performances |
+| **Deportivo** | Sporting events, competitions, and athletic activities |
+| **Cultural** | Art exhibitions, heritage events, and cultural gatherings |
+| **Familiar** | Family-friendly activities and children's events |
+| **Gastronómico** | Food festivals, culinary events, and gastronomic experiences |
+
+These categories are inserted when the seeder is run:
+
+```php
+Category::create(['name' => 'Musical']);
+Category::create(['name' => 'Teatro']);
+Category::create(['name' => 'Deportivo']);
+Category::create(['name' => 'Cultural']);
+Category::create(['name' => 'Familiar']);
+Category::create(['name' => 'Gastronómico']);
+```
+
+The `category` model exposes a `hasMany` relationship back to events, and the `Event` model resolves the inverse with `belongsTo(Category::class)`.
+
+### Admin Management
+
+Categories are managed exclusively by admins through the dashboard. The full CRUD interface is available under `/dashboard/admin/categories`:
+
+| Action | Method | Route | Description |
+|---|---|---|---|
+| List all categories | `GET` | `/dashboard/admin/categories` | Displays all categories |
+| Show create form | `GET` | `/dashboard/admin/categories/create` | Renders the create form |
+| Store new category | `POST` | `/dashboard/admin/categories` | Saves a new category |
+| Show edit form | `GET` | `/dashboard/admin/categories/{id}/edit` | Loads a category for editing |
+| Update category | `PUT` | `/dashboard/admin/categories/{id}` | Persists the updated name |
+| Delete category | `DELETE` | `/dashboard/admin/categories/{id}` | Removes the category |
+
+The controller logic is intentionally simple — the only editable field is `name`:
+
+```php
+// Storing a new category
+public function store(Request $request)
+{
+    $category = new Category();
+    $category->name = $request->name;
+    $category->save();
+
+    return redirect()->route('categories.index');
+}
+
+// Updating an existing category
+public function update(Request $request, string $id)
+{
+    $category = Category::find($id);
+    $category->name = $request->name;
+    $category->save();
+
+    return redirect()->route('categories.index');
+}
+```
+
+<Warning>
+  Deleting a category sets `category_id` to `null` on all associated events (enforced at the database level via `onDelete('set null')`). Existing events will lose their category assignment. Consider reassigning events to a different category before deleting one.
+</Warning>
+
+---
+
+## Statuses
+
+Statuses communicate an event's current availability to attendees. Three statuses are seeded by `StatusTableSeeder`:
+
+| ID | Name | Meaning |
+|---|---|---|
+| `1` | **Disponible** | Tickets are available for purchase |
+| `2` | **Agotado** | All tickets have been sold; the event is sold out |
+| `3` | **Finalizado** | The event has concluded; manually set by an admin |
+
+The seeder populates these in order, which is why their IDs are predictable and referenced directly in the application code:
+
+```php
+Status::create(['name' => 'Disponible']); // id = 1
+Status::create(['name' => 'Agotado']);    // id = 2
+Status::create(['name' => 'Finalizado']); // id = 3
+```
+
+### Admin Management
+
+Statuses are managed exclusively by admins through the dashboard under `/dashboard/admin/status`:
+
+| Action | Method | Route | Description |
+|---|---|---|---|
+| List all statuses | `GET` | `/dashboard/admin/status` | Displays all statuses |
+| Show create form | `GET` | `/dashboard/admin/status/create` | Renders the create form |
+| Store new status | `POST` | `/dashboard/admin/status` | Saves a new status |
+| Show edit form | `GET` | `/dashboard/admin/status/{id}/edit` | Loads a status for editing |
+| Update status | `PUT` | `/dashboard/admin/status/{id}` | Persists the updated name |
+| Delete status | `DELETE` | `/dashboard/admin/status/{id}` | Removes the status |
+
+The controller follows the same pattern as categories, with `name` as the only mutable field:
+
+```php
+// Storing a new status
+public function store(Request $request)
+{
+    $statu = new Status();
+    $statu->name = $request->name;
+    $statu->save();
+
+    return redirect()->route('status.index');
+}
+```
+
+<Note>
+  The `statuses` table uses `onDelete('set null')` for events. Deleting a status record will set `status_id` to `null` on all associated events. The three default statuses should not be deleted, as their IDs (`1`, `2`, `3`) are hardcoded into the event creation and ticket purchase logic.
+</Note>
+
+---
+
+## How Status Affects Events
+
+Status transitions happen through a combination of automatic system logic and manual admin overrides. The full lifecycle of an event's status looks like this:
+
+<Steps>
+  <Step title="Event created with available capacity → Disponible">
+    When `EventController::store()` saves a new event, it checks the initial capacity value and assigns the status accordingly:
+
+    ```php
+    if ($event->capacity > 0) {
+        $event->status_id = 1; // Disponible
+    } else {
+        $event->status_id = 2; // Agotado
+    }
+    ```
+
+    An event created with any positive capacity starts as **Disponible**. An event created with a capacity of `0` starts immediately as **Agotado**.
+  </Step>
+  <Step title="All tickets sold → Agotado">
+    Each time a ticket purchase is processed by `TicketController::store()`, the remaining capacity is decremented. Once it reaches zero, the status transitions automatically:
+
+    ```php
+    $event->capacity  -= $request->quantity;
+    $event->attendees += $request->quantity;
+
+    if ($event->capacity == 0) {
+        $event->status_id = 2; // Agotado
+    }
+
+    $event->save();
+    ```
+
+    This ensures the event detail page and explore listing always reflect real-time availability without any manual intervention.
+  </Step>
+  <Step title="Event concludes → Finalizado (manual)">
+    The **Finalizado** status is not set automatically by the system. An admin must navigate to the event edit form (`GET /dashboard/events/edit/{event}`) and manually select **Finalizado** from the status dropdown. This is the appropriate action after an event's `end_date` has passed and the organizer wants to communicate that no further activity is expected.
+  </Step>
+</Steps>
+
+<Tip>
+  Because status `id = 1` (Disponible) is the default value defined in the `events` table migration (`$table->unsignedBigInteger('status_id')->default(1)`), newly created events will fall back to **Disponible** at the database level even if `status_id` is not explicitly set in the application code.
+</Tip>
+
+### Status Transition Summary
+
+| Trigger | From | To | Actor |
+|---|---|---|---|
+| Event created, `capacity > 0` | — | Disponible | System |
+| Event created, `capacity == 0` | — | Agotado | System |
+| Ticket purchase depletes capacity | Disponible | Agotado | System |
+| Admin marks event as concluded | Any | Finalizado | Admin |
+| Admin manually overrides status | Any | Any | Admin |

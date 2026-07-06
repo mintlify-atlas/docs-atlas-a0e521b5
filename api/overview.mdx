@@ -1,0 +1,142 @@
+---
+title: "Eventify REST API Reference Overview"
+sidebarTitle: "Overview"
+description: "The Eventify API provides JSON endpoints for events, categories, locations, and statuses. Base URL is /api — most endpoints require no authentication."
+---
+
+The Eventify REST API gives you programmatic access to the core data that powers the Eventify platform — events, categories, locations, and statuses. Every response is JSON, the majority of endpoints are publicly accessible without any credentials, and the API follows conventional HTTP semantics: `GET` to read, `POST` to create, `PUT` to update, and `DELETE` to remove. Whether you're building an integration, a mobile client, or just exploring the data, this reference covers everything you need to get started quickly.
+
+## Base URL
+
+All API endpoints are mounted under the `/api` path segment of your Eventify installation. Replace `your-domain` with your actual host:
+
+```
+http://your-domain/api
+```
+
+For a standard local development setup using Laravel's built-in server the base URL is:
+
+```
+http://localhost:8000/api
+```
+
+## Authentication
+
+Most API endpoints are **public** and require no authentication. The single exception is `GET /api/user`, which is protected by [Laravel Sanctum](https://laravel.com/docs/sanctum) and returns the currently authenticated user's profile.
+
+To call authenticated endpoints, include a Sanctum-issued bearer token in the `Authorization` header of your request:
+
+```bash
+curl http://localhost:8000/api/user \
+  -H "Authorization: Bearer {token}" \
+  -H "Accept: application/json"
+```
+
+<Note>
+  All other resource endpoints — `/api/event`, `/api/category`, `/api/locations`, and `/api/statuses` — are unauthenticated. No token is needed to read or modify event and category data through the API.
+</Note>
+
+## Response Format
+
+Every response from the Eventify API is `Content-Type: application/json`. The shape of a response depends on the action performed:
+
+| Scenario | HTTP Status | Body shape |
+|---|---|---|
+| Successful read | `200 OK` | Resource object or array of resource objects |
+| Successful create | `201 Created` | Newly created resource object |
+| Successful update | `200 OK` | Updated resource object |
+| Successful delete | `200 OK` | `{"message": "..."}` confirmation |
+| Resource not found | `404 Not Found` | `{"message": "..."}` describing what was missing |
+| Validation failure | `422 Unprocessable Entity` | Laravel validation error object |
+
+### Error Response Examples
+
+A `404` response looks like:
+
+```json
+{
+  "message": "Event not found"
+}
+```
+
+A `422` validation error from Laravel looks like:
+
+```json
+{
+  "message": "The name field is required.",
+  "errors": {
+    "name": [
+      "The name field is required."
+    ],
+    "end_date": [
+      "The end date field must be a date after or equal to start date."
+    ]
+  }
+}
+```
+
+## Available Resources
+
+<CardGroup cols={2}>
+  <Card title="Events" icon="calendar" href="/api/events">
+    Full CRUD for events. List, retrieve, create, update, and delete event records, each with eager-loaded category, location, user, and status relations.
+  </Card>
+  <Card title="Categories" icon="tag" href="/api/categories">
+    Full CRUD for event categories. Manage the classification labels that are attached to events across the platform.
+  </Card>
+  <Card title="Locations" icon="map-pin" href="/api/locations">
+    Read-only listing of all location records, including street address, city, region, country, and geocoded latitude/longitude coordinates.
+  </Card>
+  <Card title="Statuses" icon="circle-check" href="/api/statuses">
+    Read-only listing of all event status records — Disponible, Agotado, and Finalizado — used to reflect an event's current availability.
+  </Card>
+</CardGroup>
+
+The table below summarises the available endpoints per resource at a glance:
+
+| Resource | Endpoints | Description |
+|---|---|---|
+| **Events** | `GET`, `POST` `/api/event` · `GET`, `PUT`, `DELETE` `/api/event/{id}` | Full CRUD — list all, retrieve one, create, update, delete |
+| **Categories** | `GET`, `POST` `/api/category` · `GET`, `PUT`, `DELETE` `/api/category/{id}` | Full CRUD — list all, retrieve one, create, update, delete |
+| **Locations** | `GET /api/locations` | Read-only index of all location records |
+| **Statuses** | `GET /api/statuses` | Read-only index of all status records |
+
+## Quick Start
+
+The fastest way to verify the API is reachable is to list all events. No authentication header is required:
+
+```bash
+curl http://localhost:8000/api/event
+```
+
+A successful response returns a JSON array of event objects (empty array `[]` if no events exist yet):
+
+```json
+[
+  {
+    "id": 1,
+    "user_id": 2,
+    "status_id": 1,
+    "location_id": 3,
+    "category_id": 1,
+    "name": "Tech Summit 2024",
+    "description": "Annual technology conference covering the latest trends.",
+    "img_url": "https://example.com/images/tech-summit.jpg",
+    "capacity": 500,
+    "attendees": 124,
+    "price": 150,
+    "start_date": "2024-09-15T09:00:00.000000Z",
+    "end_date": "2024-09-17T18:00:00.000000Z",
+    "created_at": "2024-05-10T14:23:00.000000Z",
+    "updated_at": "2024-05-10T14:23:00.000000Z",
+    "category": { "id": 1, "name": "Technology", "created_at": "...", "updated_at": "..." },
+    "location": { "id": 3, "address": "123 Main St", "city": "Madrid", "region": "Community of Madrid", "country": "Spain", "latitude": "40.4168000", "longitude": "-3.7038000", "created_at": "...", "updated_at": "..." },
+    "user": { "id": 2, "name": "Jane Doe", "email": "jane@example.com" },
+    "status": { "id": 1, "name": "Disponible", "created_at": "...", "updated_at": "..." }
+  }
+]
+```
+
+<Tip>
+  Pass the `-s` flag with `curl` to suppress progress output, and pipe through `python3 -m json.tool` (or `jq`) to pretty-print the JSON response in your terminal.
+</Tip>

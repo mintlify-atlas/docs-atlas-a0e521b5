@@ -1,0 +1,126 @@
+---
+title: "Dashboard Overview: Manage Your Events and Tickets"
+sidebarTitle: "Overview"
+description: "The Eventify dashboard provides authenticated users and admins a central place to manage events, view tickets, and access analytics — all behind role-based access."
+---
+
+The Eventify dashboard is the operational heart of the platform. Every action that goes beyond browsing — creating and editing events, purchasing and viewing tickets, or administering the platform's users and taxonomies — happens here. Access is protected by both Laravel's built-in `auth` middleware and a custom `role` middleware, ensuring that only authenticated accounts with a recognized role can reach any dashboard route. Depending on whether an account holds the `user` or `admin` role, the set of available sections differs significantly.
+
+## Accessing the Dashboard
+
+The dashboard is mounted at the `/dashboard` prefix. Every route beneath it requires two middleware guards:
+
+- **`auth`** — the request must belong to a logged-in session.
+- **`role:admin|user`** — the authenticated user's role label must be either `admin` or `user`.
+
+```php
+Route::prefix('dashboard')->middleware(['auth', 'role:admin|user'])->group(function () {
+    Route::view('/', 'dashboard.home')->name('dashboard');
+    // ...
+});
+```
+
+Unauthenticated visitors are redirected to the login page. Authenticated users whose role does not match either label receive a `403 Unauthorized` response.
+
+<Note>
+  The root of the dashboard (`/dashboard`) renders a static Blade view called `dashboard.home`. There is no controller method behind it — it acts as a landing page and navigation hub.
+</Note>
+
+## User Dashboard
+
+Any account with the `user` role (and equally any `admin`) can access the following sections once authenticated.
+
+### My Events — `/dashboard/events`
+
+The events section lets a user manage the events they own. From here they can list all of their events, open the creation form, edit an existing event, and permanently delete one.
+
+| Method | Path | Action |
+|--------|------|--------|
+| `GET` | `/dashboard/events` | List the authenticated user's events |
+| `GET` | `/dashboard/events/create` | Show the event creation form |
+| `POST` | `/dashboard/events/store` | Persist a new event |
+| `GET` | `/dashboard/events/edit/{event}` | Show the edit form for an event |
+| `PATCH` | `/dashboard/events/{event}` | Apply updates to an existing event |
+| `DELETE` | `/dashboard/events/delete/{event}` | Permanently delete an event |
+
+### My Tickets — `/dashboard/tickets`
+
+The tickets section shows every ticket the authenticated user has purchased, and also exposes the endpoint for buying a new ticket. Each ticket can be downloaded as a PDF report.
+
+| Method | Path | Action |
+|--------|------|--------|
+| `GET` | `/dashboard/tickets` | List the authenticated user's tickets |
+| `POST` | `/dashboard/tickets/store` | Purchase a new ticket |
+| `GET` | `/dashboard/tickets/{id}/report` | Download a ticket as a PDF |
+
+## Admin Dashboard
+
+Accounts with the `admin` role inherit everything a regular user can do and gain access to three additional management sections, all scoped under `/dashboard/admin`. These routes are protected by an extra `role:admin` middleware layer on top of the outer `auth` + `role:admin|user` group.
+
+```php
+Route::prefix('admin')->middleware('role:admin')->group(function () {
+    // User management, category management, status management
+});
+```
+
+### User Management — `/dashboard/admin/users`
+
+Admins can create, view, edit, and delete user accounts, including assigning roles. See [User Management](/dashboard/user-management) for the full reference.
+
+### Category Management — `/dashboard/admin/categories`
+
+Admins can create and maintain the event categories that appear on the explore and event-creation pages.
+
+### Status Management — `/dashboard/admin/status`
+
+Admins can manage the set of statuses that can be applied to events (for example: *active*, *cancelled*, *sold out*).
+
+## Chart Data
+
+The `/chart-data` endpoint is a public JSON endpoint that powers the analytics charts rendered on the dashboard home view. It returns three datasets in a single response:
+
+- **`resumen`** — total counts for events, users, and tickets.
+- **`eventosConMasAsistentes`** — the top 5 events by attendee count (name + attendee total).
+- **`eventosPorCategoria`** — event count grouped and ordered by category name.
+
+```php
+GET /chart-data
+```
+
+Example response shape:
+
+```json
+{
+  "resumen": {
+    "x": ["Eventos", "Usuarios", "Tickets"],
+    "y": [42, 150, 310]
+  },
+  "eventosConMasAsistentes": [
+    { "name": "Laravel Day", "attendees": 200 }
+  ],
+  "eventosPorCategoria": [
+    { "name": "Technology", "total": 18 }
+  ]
+}
+```
+
+<Note>
+  The `/chart-data` route is defined outside the `dashboard` prefix group and carries no middleware in `web.php`. Chart requests are made from the authenticated dashboard view, so access is implicitly controlled by the page that consumes it.
+</Note>
+
+## Dashboard Sections at a Glance
+
+<CardGroup cols={2}>
+  <Card title="My Events" icon="calendar" href="/features/events">
+    Create, edit, and delete the events you own — all from a single management view.
+  </Card>
+  <Card title="My Tickets" icon="ticket" href="/features/tickets">
+    Browse your purchased tickets and download individual PDF reports for any ticket.
+  </Card>
+  <Card title="User Management" icon="users" href="/dashboard/user-management">
+    Admin only — create, edit, and remove user accounts and assign roles.
+  </Card>
+  <Card title="Roles & Permissions" icon="shield" href="/dashboard/roles-permissions">
+    Learn how the two-role system (admin and user) gates every dashboard route.
+  </Card>
+</CardGroup>

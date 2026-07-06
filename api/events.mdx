@@ -1,0 +1,400 @@
+---
+title: "REST API Endpoints for Events"
+sidebarTitle: "Events"
+description: "Full CRUD REST API for Eventify events. GET, POST, PUT, DELETE /api/event — each event includes name, dates, capacity, price, location, category, and status."
+---
+
+Events are the central resource in Eventify. Each event record holds scheduling information (start and end dates), logistics details (capacity, attendee count, price, and location), and classification metadata (category and status). The five endpoints below give you complete control over event data: listing all events with their related records eager-loaded, fetching a single event by ID, creating a new event, updating an existing one, or deleting it permanently.
+
+---
+
+## The event object
+
+Every successful response involving a single event — or each element in an array response — returns an event object with the following fields.
+
+<ResponseField name="id" type="integer">
+  Auto-incremented primary key uniquely identifying the event.
+</ResponseField>
+<ResponseField name="user_id" type="integer | null">
+  Foreign key referencing the `users` table. Identifies the user who owns or created the event. `null` if no user is assigned (set to `null` on user deletion).
+</ResponseField>
+<ResponseField name="status_id" type="integer | null">
+  Foreign key referencing the `statuses` table. Defaults to `1` (Disponible) on creation. Set to `null` on status deletion.
+</ResponseField>
+<ResponseField name="location_id" type="integer | null">
+  Foreign key referencing the `locations` table. Set to `null` on location deletion.
+</ResponseField>
+<ResponseField name="category_id" type="integer | null">
+  Foreign key referencing the `categories` table. Set to `null` on category deletion.
+</ResponseField>
+<ResponseField name="name" type="string">
+  Display name of the event. Maximum 255 characters.
+</ResponseField>
+<ResponseField name="description" type="string">
+  Full text description of the event.
+</ResponseField>
+<ResponseField name="img_url" type="string | null">
+  URL pointing to the event's cover image. May be `null` if no image has been assigned.
+</ResponseField>
+<ResponseField name="capacity" type="integer">
+  Total number of attendee spots available for the event.
+</ResponseField>
+<ResponseField name="attendees" type="integer">
+  Current number of confirmed attendees. Defaults to `0` at creation and is incremented by the system as tickets are issued.
+</ResponseField>
+<ResponseField name="price" type="integer">
+  Ticket price for the event (stored as an integer, representing the smallest currency unit or whole currency amount depending on your locale).
+</ResponseField>
+<ResponseField name="start_date" type="datetime">
+  ISO 8601 datetime string indicating when the event begins.
+</ResponseField>
+<ResponseField name="end_date" type="datetime">
+  ISO 8601 datetime string indicating when the event ends. Always on or after `start_date`.
+</ResponseField>
+<ResponseField name="created_at" type="datetime">
+  ISO 8601 datetime string set automatically when the record is first created.
+</ResponseField>
+<ResponseField name="updated_at" type="datetime">
+  ISO 8601 datetime string updated automatically whenever the record is modified.
+</ResponseField>
+<ResponseField name="category" type="object">
+  Eager-loaded category object (`id`, `name`, `created_at`, `updated_at`). Present on `index` and `show` responses.
+</ResponseField>
+<ResponseField name="location" type="object">
+  Eager-loaded location object (`id`, `address`, `city`, `region`, `country`, `latitude`, `longitude`, `created_at`, `updated_at`). Present on `index` and `show` responses.
+</ResponseField>
+<ResponseField name="user" type="object">
+  Eager-loaded user object. Present on `index` and `show` responses.
+</ResponseField>
+<ResponseField name="status" type="object">
+  Eager-loaded status object (`id`, `name`, `created_at`, `updated_at`). Present on `index` and `show` responses.
+</ResponseField>
+
+---
+
+## GET /api/event
+
+Returns an array of all events in the database. Each event object includes the fully eager-loaded `category`, `location`, `user`, and `status` relations so that you do not need to make additional requests to resolve associated records.
+
+```bash
+curl http://localhost:8000/api/event \
+  -H "Accept: application/json"
+```
+
+**Response — 200 OK**
+
+```json
+[
+  {
+    "id": 1,
+    "user_id": 2,
+    "status_id": 1,
+    "location_id": 3,
+    "category_id": 1,
+    "name": "Tech Summit 2024",
+    "description": "Annual technology conference covering the latest industry trends.",
+    "img_url": "https://example.com/images/tech-summit.jpg",
+    "capacity": 500,
+    "attendees": 124,
+    "price": 150,
+    "start_date": "2024-09-15T09:00:00.000000Z",
+    "end_date": "2024-09-17T18:00:00.000000Z",
+    "created_at": "2024-05-10T14:23:00.000000Z",
+    "updated_at": "2024-05-10T14:23:00.000000Z",
+    "category": {
+      "id": 1,
+      "name": "Technology",
+      "created_at": "2024-05-01T00:00:00.000000Z",
+      "updated_at": "2024-05-01T00:00:00.000000Z"
+    },
+    "location": {
+      "id": 3,
+      "address": "123 Main St",
+      "city": "Madrid",
+      "region": "Community of Madrid",
+      "country": "Spain",
+      "latitude": "40.4168000",
+      "longitude": "-3.7038000",
+      "created_at": "2024-05-01T00:00:00.000000Z",
+      "updated_at": "2024-05-01T00:00:00.000000Z"
+    },
+    "user": {
+      "id": 2,
+      "name": "Jane Doe",
+      "email": "jane@example.com"
+    },
+    "status": {
+      "id": 1,
+      "name": "Disponible",
+      "created_at": "2024-05-01T00:00:00.000000Z",
+      "updated_at": "2024-05-01T00:00:00.000000Z"
+    }
+  }
+]
+```
+
+Returns an empty array `[]` with status `200` when no events exist.
+
+---
+
+## GET /api/event/\{id\}
+
+Returns a single event identified by its integer `id`, with all relations eager-loaded.
+
+**Path parameter**
+
+<ParamField path="id" type="integer" required>
+  The unique identifier of the event to retrieve.
+</ParamField>
+
+```bash
+curl http://localhost:8000/api/event/1 \
+  -H "Accept: application/json"
+```
+
+**Response — 200 OK**
+
+```json
+{
+  "id": 1,
+  "user_id": 2,
+  "status_id": 1,
+  "location_id": 3,
+  "category_id": 1,
+  "name": "Tech Summit 2024",
+  "description": "Annual technology conference covering the latest industry trends.",
+  "img_url": "https://example.com/images/tech-summit.jpg",
+  "capacity": 500,
+  "attendees": 124,
+  "price": 150,
+  "start_date": "2024-09-15T09:00:00.000000Z",
+  "end_date": "2024-09-17T18:00:00.000000Z",
+  "created_at": "2024-05-10T14:23:00.000000Z",
+  "updated_at": "2024-05-10T14:23:00.000000Z",
+  "category": { "id": 1, "name": "Technology" },
+  "location": { "id": 3, "address": "123 Main St", "city": "Madrid", "region": "Community of Madrid", "country": "Spain", "latitude": "40.4168000", "longitude": "-3.7038000" },
+  "user": { "id": 2, "name": "Jane Doe", "email": "jane@example.com" },
+  "status": { "id": 1, "name": "Disponible" }
+}
+```
+
+**Error responses**
+
+| Status | Body |
+|---|---|
+| `404 Not Found` | `{"message": "Event not found"}` |
+
+---
+
+## POST /api/event
+
+Creates a new event record. The request body must be JSON or form-encoded and pass all required field validations. On success the newly created event is returned with HTTP `201 Created`. The `attendees` field is not accepted as input — it starts at `0` and is managed by the system.
+
+**Request body**
+
+<ParamField body="name" type="string" required>
+  Display name of the event. Maximum 255 characters.
+</ParamField>
+<ParamField body="description" type="string" required>
+  Full text description of the event.
+</ParamField>
+<ParamField body="capacity" type="integer" required>
+  Total number of available attendee spots.
+</ParamField>
+<ParamField body="price" type="integer" required>
+  Ticket price for the event.
+</ParamField>
+<ParamField body="start_date" type="date" required>
+  Event start date/time. Must be a valid date string parseable by PHP (e.g. `2024-09-15` or `2024-09-15T09:00:00`).
+</ParamField>
+<ParamField body="end_date" type="date" required>
+  Event end date/time. Must be a valid date on or after `start_date`.
+</ParamField>
+<ParamField body="category_id" type="integer" required>
+  ID of an existing category from the `categories` table.
+</ParamField>
+<ParamField body="location_id" type="integer" required>
+  ID of an existing location from the `locations` table.
+</ParamField>
+<ParamField body="status_id" type="integer" required>
+  ID of an existing status from the `statuses` table.
+</ParamField>
+<ParamField body="user_id" type="integer">
+  Optional. ID of an existing user to associate with the event. May be omitted or explicitly sent as `null`.
+</ParamField>
+<ParamField body="img_url" type="string">
+  Optional. URL string for the event's cover image. May be omitted or explicitly sent as `null`.
+</ParamField>
+
+```bash
+curl -X POST http://localhost:8000/api/event \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Tech Summit 2024",
+    "description": "Annual technology conference covering the latest industry trends.",
+    "capacity": 500,
+    "price": 150,
+    "start_date": "2024-09-15T09:00:00",
+    "end_date": "2024-09-17T18:00:00",
+    "category_id": 1,
+    "location_id": 3,
+    "status_id": 1,
+    "user_id": 2,
+    "img_url": "https://example.com/images/tech-summit.jpg"
+  }'
+```
+
+**Response — 201 Created**
+
+```json
+{
+  "id": 5,
+  "user_id": 2,
+  "status_id": 1,
+  "location_id": 3,
+  "category_id": 1,
+  "name": "Tech Summit 2024",
+  "description": "Annual technology conference covering the latest industry trends.",
+  "img_url": "https://example.com/images/tech-summit.jpg",
+  "capacity": 500,
+  "attendees": 0,
+  "price": 150,
+  "start_date": "2024-09-15T09:00:00.000000Z",
+  "end_date": "2024-09-17T18:00:00.000000Z",
+  "created_at": "2024-05-20T10:00:00.000000Z",
+  "updated_at": "2024-05-20T10:00:00.000000Z"
+}
+```
+
+<Note>
+  The `store` response returns the raw event model without eager-loaded relations. Call `GET /api/event/{id}` if you need the full relational payload immediately after creation.
+</Note>
+
+**Error responses**
+
+| Status | Body |
+|---|---|
+| `422 Unprocessable Entity` | Laravel validation error object with per-field messages |
+
+---
+
+## PUT /api/event/\{id\}
+
+Updates an existing event. All body fields are optional — only the fields you include will be changed. Any field you do provide is still subject to the same validation rules as on creation.
+
+**Path parameter**
+
+<ParamField path="id" type="integer" required>
+  The unique identifier of the event to update.
+</ParamField>
+
+**Request body** — all fields optional
+
+<ParamField body="name" type="string">
+  New display name. Maximum 255 characters.
+</ParamField>
+<ParamField body="description" type="string">
+  New description text.
+</ParamField>
+<ParamField body="capacity" type="integer">
+  Updated total capacity.
+</ParamField>
+<ParamField body="price" type="integer">
+  Updated ticket price.
+</ParamField>
+<ParamField body="start_date" type="date">
+  Updated start date/time.
+</ParamField>
+<ParamField body="end_date" type="date">
+  Updated end date/time. Must be on or after `start_date` when provided.
+</ParamField>
+<ParamField body="category_id" type="integer">
+  ID of the new category. Must exist in the `categories` table.
+</ParamField>
+<ParamField body="location_id" type="integer">
+  ID of the new location. Must exist in the `locations` table.
+</ParamField>
+<ParamField body="status_id" type="integer">
+  ID of the new status. Must exist in the `statuses` table.
+</ParamField>
+<ParamField body="user_id" type="integer">
+  ID of the new owning user. May be `null`.
+</ParamField>
+<ParamField body="img_url" type="string">
+  New cover image URL. May be `null`.
+</ParamField>
+
+```bash
+curl -X PUT http://localhost:8000/api/event/5 \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "capacity": 600,
+    "status_id": 2
+  }'
+```
+
+**Response — 200 OK**
+
+```json
+{
+  "id": 5,
+  "user_id": 2,
+  "status_id": 2,
+  "location_id": 3,
+  "category_id": 1,
+  "name": "Tech Summit 2024",
+  "description": "Annual technology conference covering the latest industry trends.",
+  "img_url": "https://example.com/images/tech-summit.jpg",
+  "capacity": 600,
+  "attendees": 0,
+  "price": 150,
+  "start_date": "2024-09-15T09:00:00.000000Z",
+  "end_date": "2024-09-17T18:00:00.000000Z",
+  "created_at": "2024-05-20T10:00:00.000000Z",
+  "updated_at": "2024-05-20T11:30:00.000000Z"
+}
+```
+
+**Error responses**
+
+| Status | Body |
+|---|---|
+| `404 Not Found` | `{"message": "Event not found"}` |
+| `422 Unprocessable Entity` | Laravel validation error object with per-field messages |
+
+---
+
+## DELETE /api/event/\{id\}
+
+Permanently deletes the event with the given ID. The underlying database record uses soft-deletes (the `deleted_at` column from the migration), so deleted rows are retained at the database level but excluded from all queries.
+
+**Path parameter**
+
+<ParamField path="id" type="integer" required>
+  The unique identifier of the event to delete.
+</ParamField>
+
+```bash
+curl -X DELETE http://localhost:8000/api/event/5 \
+  -H "Accept: application/json"
+```
+
+**Response — 200 OK**
+
+```json
+{
+  "message": "Event deleted"
+}
+```
+
+**Error responses**
+
+| Status | Body |
+|---|---|
+| `404 Not Found` | `{"message": "Event not found"}` |
+
+<Warning>
+  Deletion is irreversible from the API's perspective. Although soft-delete means the database row is preserved, there is no un-delete endpoint exposed by the API.
+</Warning>

@@ -1,0 +1,190 @@
+---
+title: "Admin User Management in Eventify"
+sidebarTitle: "User Management"
+description: "Admins can create, view, edit, and delete user accounts from the Eventify dashboard — including assigning roles and resetting passwords."
+---
+
+Eventify gives administrators full control over the user accounts registered on the platform. From the `/dashboard/admin/users` section, an admin can inspect every account in the system, onboard new users by filling in their credentials and assigning a role, update any existing account's details (including resetting their password), and permanently remove accounts that are no longer needed. All of this is handled by the `UserController`, which sits behind both the `auth` and `role:admin` middleware layers.
+
+## Access
+
+User management routes are nested inside the `/dashboard/admin` prefix group, which applies `middleware('role:admin')` on top of the outer `['auth', 'role:admin|user']` guard. Only accounts whose role label is `admin` can reach any of the endpoints below — all others receive a `403 Unauthorized` response.
+
+```php
+Route::prefix('admin')->middleware('role:admin')->group(function () {
+    Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
+    Route::post('/users', [UserController::class, 'store'])->name('users.store');
+    Route::get('/users/{id}/edit', [UserController::class, 'edit'])->name('users.edit');
+    Route::put('/users/{id}', [UserController::class, 'update'])->name('users.update');
+    Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('users.destroy');
+});
+```
+
+## Route Reference
+
+| Method | Path | Controller Action | Description |
+|--------|------|-------------------|-------------|
+| `GET` | `/dashboard/admin/users` | `index` | List all users with their roles |
+| `GET` | `/dashboard/admin/users/create` | `create` | Show the user creation form |
+| `POST` | `/dashboard/admin/users` | `store` | Persist a new user account |
+| `GET` | `/dashboard/admin/users/{id}/edit` | `edit` | Show the edit form for a user |
+| `PUT` | `/dashboard/admin/users/{id}` | `update` | Apply updates to an existing user |
+| `DELETE` | `/dashboard/admin/users/{id}` | `destroy` | Permanently delete a user |
+
+## Listing Users
+
+`GET /dashboard/admin/users` fetches every user record in the database and eager-loads their associated `Role` to avoid N+1 queries in the management view.
+
+```php
+public function index()
+{
+    $users = User::with('role')->get();
+    return view('dashboard.admin.users.users_management')->with('users', $users);
+}
+```
+
+Each row in the resulting view has direct access to `$user->role->name` and `$user->role->label` without triggering additional queries.
+
+## Creating a User
+
+<Steps>
+  <Step title="Open the creation form">
+    Navigate to `GET /dashboard/admin/users/create`. The controller loads all available roles from the database and passes them to the view so the admin can pick one from a drop-down.
+
+    ```php
+    public function create()
+    {
+        $roles = Role::all();
+        return view('dashboard.admin.users.users_create')->with('roles', $roles);
+    }
+    ```
+  </Step>
+  <Step title="Submit the form">
+    The form posts to `POST /dashboard/admin/users`. The `store` method reads the four required fields, hashes the plain-text password using `Hash::make()`, and saves the record.
+
+    ```php
+    public function store(Request $request)
+    {
+        $user = new User();
+        $user->name     = $request->name;
+        $user->email    = $request->email;
+        $user->password = Hash::make($request->password);
+        $user->role_id  = $request->role_id;
+        $user->save();
+
+        return redirect()->route('users.index');
+    }
+    ```
+  </Step>
+  <Step title="Confirm the redirect">
+    On success the admin is redirected back to the user list at `users.index`.
+  </Step>
+</Steps>
+
+### Required Fields
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `name` | `string` | Display name for the user |
+| `email` | `string` | Must be unique in the `users` table |
+| `password` | `string` | Stored as a `bcrypt` hash via `Hash::make()` |
+| `role_id` | `integer` | Foreign key referencing the `roles` table |
+
+<Note>
+  The `role_id` column defaults to `2` (the `user` role) at the database level, but the creation form always requires the admin to make an explicit selection, so the default is a safety net rather than an intended workflow.
+</Note>
+
+## Editing a User
+
+<Steps>
+  <Step title="Open the edit form">
+    Navigate to `GET /dashboard/admin/users/{id}/edit`. The controller fetches the target user by primary key and loads all roles for the role selector.
+
+    ```php
+    public function edit(string $id)
+    {
+        $user  = User::find($id);
+        $roles = Role::all();
+        return view('dashboard.admin.users.users_edit')
+            ->with(['user' => $user, 'roles' => $roles]);
+    }
+    ```
+  </Step>
+  <Step title="Submit the changes">
+    The form sends a `PUT` request to `/dashboard/admin/users/{id}`. All four fields may be changed. The password field is **optional on edit** — if it is left blank the existing hashed password is preserved unchanged.
+
+    ```php
+    public function update(Request $request, string $id)
+    {
+        $user        = User::find($id);
+        $user->name  = $request->name;
+        $user->email = $request->email;
+
+        // Only hash and update the password if a new one was provided
+        if ($request->filled('password')) {
+            $user->password = Hash::make($request->password);
+        }
+
+        $user->role_id = $request->role_id;
+        $user->save();
+
+        return redirect()->route('users.index');
+    }
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  Leave the password field empty when editing a user if you only want to update their name, email, or role. The conditional `$request->filled('password')` check ensures the stored hash is never overwritten with an empty value.
+</Tip>
+
+## Deleting a User
+
+Sending a `DELETE` request to `/dashboard/admin/users/{id}` permanently removes the user record from the database. The controller locates the user by ID, calls `delete()`, then redirects back to the user list.
+
+```php
+public function destroy(string $id)
+{
+    $user = User::find($id);
+    $user->delete();
+    return redirect()->route('users.index');
+}
+```
+
+<Warning>
+  Deletion is immediate and irreversible through the UI. The `users` table schema includes a `softDeletes` column, but `UserController::destroy` calls `$user->delete()` which, without the `SoftDeletes` trait on the `User` model, performs a hard delete. Verify the intended behaviour before removing an account.
+</Warning>
+
+## User Model Reference
+
+The `User` model's `$fillable` array and its relationships are shown below for reference.
+
+```php
+// app/Models/User.php
+
+protected $fillable = [
+    'name',
+    'email',
+    'password',
+    'role_id',
+];
+
+// Each user belongs to exactly one role
+public function role()
+{
+    return $this->belongsTo(Role::class);
+}
+
+// A user can own many events
+public function events()
+{
+    return $this->hasMany(Event::class);
+}
+
+// A user can hold many tickets
+public function tickets()
+{
+    return $this->hasMany(Ticket::class);
+}
+```

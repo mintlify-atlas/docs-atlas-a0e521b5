@@ -1,0 +1,233 @@
+---
+title: "Configure Eventify for Your Environment"
+sidebarTitle: "Configuration"
+description: "Set up environment variables, database connections, file storage, mail, and queue settings for Eventify using the .env file."
+---
+
+Eventify follows the standard Laravel convention of storing all environment-specific configuration in a `.env` file at the project root. This file is never committed to version control — it exists only on the machine running the application. The `.env.example` file committed to the repository documents every variable the application reads, and serves as the authoritative template you copy when setting up a new environment.
+
+To create your local configuration file, run:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` with the values appropriate for your environment. The sections below document every variable, grouped by concern.
+
+---
+
+## Application
+
+These variables control the fundamental identity and runtime behavior of the Laravel application.
+
+<Warning>
+  Always set `APP_DEBUG=false` in production. When debug mode is enabled, detailed exception stack traces — including environment variables and database query bindings — are rendered directly in the browser, which can expose sensitive information to end users.
+</Warning>
+
+<ParamField body="APP_NAME" type="string" default="Laravel">
+  The human-readable name of the application. Laravel uses this value in notification messages, email subjects, and the `MAIL_FROM_NAME` variable when it is set to `"${APP_NAME}"`.
+
+  ```ini
+  APP_NAME=Eventify
+  ```
+</ParamField>
+
+<ParamField body="APP_ENV" type="string" default="local">
+  Describes the current runtime environment. Common values are `local`, `staging`, and `production`. Some Laravel behaviors (such as exception handling verbosity) change based on this value.
+
+  ```ini
+  APP_ENV=production
+  ```
+</ParamField>
+
+<ParamField body="APP_KEY" type="string" required>
+  A 32-character random string used by Laravel's encrypter for AES-256-CBC encryption of cookies, sessions, and other sensitive data. **The application will throw a runtime exception if this value is empty.** Generate it with:
+
+  ```bash
+  php artisan key:generate
+  ```
+</ParamField>
+
+<ParamField body="APP_DEBUG" type="boolean" default="true">
+  Controls whether Laravel renders full exception stack traces in the browser. Set to `false` in any environment accessible by end users.
+
+  ```ini
+  APP_DEBUG=false
+  ```
+</ParamField>
+
+<ParamField body="APP_URL" type="string" default="http://localhost">
+  The root URL of the application. Artisan uses this when generating URLs from the command line (e.g., in queued jobs or scheduled commands). Set this to your public domain in production.
+
+  ```ini
+  APP_URL=https://events.example.com
+  ```
+</ParamField>
+
+---
+
+## Database
+
+Eventify requires a MySQL database. These variables configure the PDO connection that Laravel uses for all Eloquent queries, migrations, and seeders.
+
+<ParamField body="DB_CONNECTION" type="string" default="mysql">
+  The database driver. Eventify is built for and tested against `mysql`. Changing this to another driver (e.g., `pgsql`) is not officially supported.
+</ParamField>
+
+<ParamField body="DB_HOST" type="string" default="127.0.0.1">
+  The hostname or IP address of your MySQL server.
+
+  ```ini
+  DB_HOST=127.0.0.1
+  ```
+</ParamField>
+
+<ParamField body="DB_PORT" type="integer" default="3306">
+  The TCP port MySQL is listening on. The default MySQL port is `3306`.
+</ParamField>
+
+<ParamField body="DB_DATABASE" type="string" required>
+  The name of the MySQL database Eventify will use. You must create this database before running migrations:
+
+  ```sql
+  CREATE DATABASE eventify CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  ```
+
+  ```ini
+  DB_DATABASE=eventify
+  ```
+</ParamField>
+
+<ParamField body="DB_USERNAME" type="string" required>
+  The MySQL user that Laravel will authenticate as. Ensure this user has `CREATE`, `ALTER`, `DROP`, `SELECT`, `INSERT`, `UPDATE`, and `DELETE` privileges on `DB_DATABASE`.
+
+  ```ini
+  DB_USERNAME=eventify_user
+  ```
+</ParamField>
+
+<ParamField body="DB_PASSWORD" type="string" required>
+  The password for `DB_USERNAME`. Leave empty only if your MySQL user has no password set (common in local development with `root`).
+
+  ```ini
+  DB_PASSWORD=a_strong_password
+  ```
+</ParamField>
+
+---
+
+## File Storage
+
+Eventify uses Laravel's filesystem abstraction to store uploaded event cover images.
+
+<ParamField body="FILESYSTEM_DISK" type="string" default="local">
+  The default storage disk. The `local` driver stores files in `storage/app`. Uploaded event images are written to `storage/app/public`, which is exposed to the web via a symbolic link.
+
+  ```ini
+  FILESYSTEM_DISK=local
+  ```
+
+  <Note>
+    After setting this variable, you must run `php artisan storage:link` to create the `public/storage → storage/app/public` symlink. Without this symlink, uploaded event images will not be served by the web server.
+  </Note>
+</ParamField>
+
+---
+
+## Cache & Session
+
+<ParamField body="CACHE_DRIVER" type="string" default="file">
+  The cache backend Laravel uses for application caching. The default `file` driver requires no additional infrastructure and stores cache entries in `storage/framework/cache`. For higher-traffic deployments, consider switching to `redis` or `memcached`.
+
+  ```ini
+  CACHE_DRIVER=file
+  ```
+</ParamField>
+
+<ParamField body="SESSION_DRIVER" type="string" default="file">
+  Where Laravel stores user session data. The `file` driver persists sessions to `storage/framework/sessions` and is appropriate for single-server deployments. Switch to `database` or `redis` when running multiple application servers behind a load balancer.
+
+  ```ini
+  SESSION_DRIVER=file
+  ```
+</ParamField>
+
+<ParamField body="SESSION_LIFETIME" type="integer" default="120">
+  How long a session remains valid, in minutes. After this period of inactivity, the user's session expires and they are redirected to the login page. The default is `120` minutes (two hours).
+
+  ```ini
+  SESSION_LIFETIME=120
+  ```
+</ParamField>
+
+---
+
+## Queue
+
+<ParamField body="QUEUE_CONNECTION" type="string" default="sync">
+  The queue driver that Laravel dispatches background jobs to. The default `sync` driver executes jobs immediately and inline within the current request — no separate worker process is required. This is suitable for development and low-traffic deployments.
+
+  For production workloads where jobs (such as sending emails) should not block the HTTP response, switch to `database` (requires a `jobs` table migration) or `redis`.
+
+  ```ini
+  QUEUE_CONNECTION=sync
+  ```
+
+  <Tip>
+    If you switch to the `database` driver, run `php artisan queue:table && php artisan migrate` to create the jobs table, then start a worker with `php artisan queue:work`.
+  </Tip>
+</ParamField>
+
+---
+
+## Mail
+
+Eventify uses Laravel's mail system for transactional emails such as email verification and password resets. These variables configure the SMTP transport.
+
+<ParamField body="MAIL_MAILER" type="string" default="smtp">
+  The mail transport driver. Common values are `smtp`, `sendmail`, and `log`. Use `log` during development to write outgoing emails to the Laravel log instead of sending them.
+
+  ```ini
+  MAIL_MAILER=smtp
+  ```
+</ParamField>
+
+<ParamField body="MAIL_HOST" type="string" default="mailpit">
+  The hostname of the SMTP server. The default `mailpit` is a local mail-catching tool bundled with Laravel Sail. For production, replace this with your SMTP provider's hostname (e.g., `smtp.mailgun.org`, `smtp.sendgrid.net`).
+
+  ```ini
+  MAIL_HOST=smtp.mailgun.org
+  ```
+</ParamField>
+
+<ParamField body="MAIL_PORT" type="integer" default="1025">
+  The SMTP port. Common values are `587` (STARTTLS), `465` (SSL), and `25` (unencrypted). The default `1025` is the Mailpit local catch-all port.
+
+  ```ini
+  MAIL_PORT=587
+  ```
+</ParamField>
+
+<ParamField body="MAIL_USERNAME" type="string" default="null">
+  The username (often the sending email address) used to authenticate with the SMTP server. Leave `null` for servers that do not require authentication.
+
+  ```ini
+  MAIL_USERNAME=postmaster@mg.example.com
+  ```
+</ParamField>
+
+<ParamField body="MAIL_PASSWORD" type="string" default="null">
+  The password for `MAIL_USERNAME`. Leave `null` if the SMTP server does not require authentication.
+
+  ```ini
+  MAIL_PASSWORD=your_smtp_password
+  ```
+</ParamField>
+
+<ParamField body="MAIL_FROM_ADDRESS" type="string" default="hello@example.com">
+  The email address that appears in the `From:` header of all outgoing mail sent by Eventify.
+
+  ```ini
+  MAIL_FROM_ADDRESS="no-reply@events.example.com"
+  ```
+</ParamField>

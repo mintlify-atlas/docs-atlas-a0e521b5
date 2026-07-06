@@ -1,47 +1,124 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with Eventify in 5 Steps"
+sidebarTitle: "Quickstart"
+description: "Install Eventify locally, run database migrations, seed sample data, and have the app running at localhost:8000 in under five minutes."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+Eventify is a standard Laravel application, so the setup process will feel immediately familiar if you have worked with Laravel before. The steps below take you from a fresh clone to a fully seeded, running instance at `http://localhost:8000` — complete with sample events, categories, and a ready-to-use admin account.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+
+  <Step title="Verify Prerequisites">
+    Before you begin, confirm the following tools are installed and available on your `PATH`:
+
+    - **PHP 8.1 or higher** — required by the `composer.json` constraint `"php": "^8.1"`
+    - **Composer** — the PHP dependency manager used to install Laravel and all packages
+    - **MySQL** — Eventify uses MySQL as its primary database driver
 
     ```bash
-    npm install your-package
+    php -v
+    composer -V
+    mysql --version
     ```
+
+    <Tip>
+      On macOS, [Laravel Herd](https://herd.laravel.com/) bundles PHP and a local MySQL instance and is the fastest way to meet all three prerequisites at once.
+    </Tip>
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+
+  <Step title="Clone the Repository">
+    Clone the Eventify repository from GitHub and navigate into the project directory:
 
     ```bash
-    your-cli init
+    git clone https://github.com/astrxnomo/eventify-app.git && cd eventify-app
     ```
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+  <Step title="Install PHP Dependencies">
+    Install all Composer dependencies, including Laravel 10, Sanctum, DomPDF, Guzzle, and Laravel UI:
 
     ```bash
-    your-cli start
+    composer update
     ```
+
+    This resolves and downloads every package listed in `composer.json` into the `vendor/` directory and regenerates the autoloader.
   </Step>
+
+  <Step title="Configure the Environment">
+    Eventify reads its runtime configuration from a `.env` file. Copy the provided example file to create your own:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Open `.env` in your editor and set your database credentials:
+
+    ```ini
+    DB_DATABASE=eventify
+    DB_USERNAME=your_mysql_username
+    DB_PASSWORD=your_mysql_password
+    ```
+
+    Then generate a unique application encryption key:
+
+    ```bash
+    php artisan key:generate
+    ```
+
+    This command writes a fresh `APP_KEY` value into your `.env` file. Laravel uses this key for encrypting session cookies and other encrypted values — the app will refuse to run without it.
+  </Step>
+
+  <Step title="Create the Storage Symlink">
+    Eventify stores uploaded event images in `storage/app/public`. To make those files accessible from the web, create a symbolic link from `public/storage` to `storage/app/public`:
+
+    ```bash
+    php artisan storage:link
+    ```
+
+    This step is required for event cover images to render correctly in the Blade templates.
+  </Step>
+
+  <Step title="Run Migrations and Seed the Database">
+    Create all database tables and populate them with sample data in a single command:
+
+    ```bash
+    php artisan migrate:fresh --seed
+    ```
+
+    <Note>
+      `migrate:fresh --seed` drops all existing tables, re-runs every migration from scratch, and then executes the seeders in this order: **roles** → **categories** → **statuses** → **admin user** → 5 random users → 30 random locations → 30 random events. After this command completes, your database is fully populated and ready to explore.
+    </Note>
+  </Step>
+
+  <Step title="Start the Development Server">
+    Launch the built-in PHP development server via Artisan:
+
+    ```bash
+    php artisan serve
+    ```
+
+    The application is now running at [http://localhost:8000](http://localhost:8000).
+  </Step>
+
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## Default Admin Credentials
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+The seeder creates one administrator account automatically. Use these credentials to log in and access the admin dashboard:
+
+| Field | Value |
+|---|---|
+| Email | `admin@admin.com` |
+| Password | `123456789` |
+
+<Note>
+  Change the admin password immediately after your first login, especially before exposing the application to a network. The seeded password is publicly known from this documentation.
+</Note>
+
+## What's Next
+
+With Eventify running locally, you can:
+
+- Explore the admin dashboard to create your first real event with a geocoded location
+- Review the [Configuration guide](/configuration) to customize environment settings such as mail delivery and queue drivers
+- Inspect the [API Reference](/api/overview) to integrate the Sanctum-authenticated REST API with an external frontend or the companion React microservice

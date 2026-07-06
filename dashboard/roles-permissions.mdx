@@ -1,0 +1,176 @@
+---
+title: "Roles and Permissions in Eventify"
+sidebarTitle: "Roles & Permissions"
+description: "Eventify uses two roles — admin and user — enforced by a custom Laravel middleware that checks the authenticated user's role label on every protected route."
+---
+
+Eventify's authorization model is deliberately simple and auditable: every user has exactly one role, that role carries a `label` string, and a custom middleware reads that label to decide whether a request is allowed to proceed. There are no permission bit-masks, no policy classes, and no package dependencies — just two seeded roles and a single middleware check that runs on every protected route. Understanding this system is essential for knowing which parts of the application any given account can reach.
+
+## The Role Model
+
+Roles are stored in the `roles` table, which is defined by the following migration:
+
+```php
+Schema::create('roles', function (Blueprint $table) {
+    $table->id();
+    $table->string('name');         // Human-readable display name
+    $table->string('label');        // Machine-readable identifier (used by middleware)
+    $table->string('description')->nullable();
+    $table->softDeletes();
+    $table->timestamps();
+});
+```
+
+The `Role` Eloquent model exposes all three columns as fillable and declares a `hasMany` relationship back to `User`:
+
+```php
+// app/Models/Role.php
+
+protected $fillable = ['name', 'label', 'description'];
+
+public function users()
+{
+    return $this->hasMany(User::class);
+}
+```
+
+The `label` column is the authoritative identifier used during access checks. It is always stored and compared in lowercase.
+
+## Available Roles
+
+Two roles are seeded by `RolesTableSeeder` and represent the full set of roles recognized by the application:
+
+```php
+Role::firstOrCreate([
+    'name'        => 'Administrator',
+    'label'       => 'admin',
+    'description' => 'System Administrator',
+]);
+
+Role::firstOrCreate([
+    'name'        => 'User',
+    'label'       => 'user',
+    'description' => 'Regular User',
+]);
+```
+
+| ID | Name | Label | Description |
+|----|------|-------|-------------|
+| 1 | Administrator | `admin` | System Administrator |
+| 2 | User | `user` | Regular User |
+
+The `users` table sets `role_id` to `2` as its column default, so any new account that is not explicitly assigned a role at creation will be treated as a regular user.
+
+## How the Middleware Works
+
+The `Role` middleware lives at `app/Http/Middleware/Role.php`. It is registered as the `role` key in the application's middleware aliases and is invoked by appending `role:<roles>` to any route or group.
+
+```php
+// app/Http/Middleware/Role.php
+
+public function handle(Request $request, Closure $next, $roles): Response
+{
+    $newRol   = explode('|', $roles);
+    $roleName = strtolower($request->user()->role->label);
+
+    if (!in_array($roleName, $newRol)) {
+        return abort(403, __('Unauthorized'));
+    }
+
+    return $next($request);
+}
+```
+
+The logic in plain English:
+
+1. The `$roles` parameter (e.g. `"admin|user"`) is split on `|` into an array of allowed labels.
+2. The authenticated user's `role->label` is fetched via the eager-loaded (or lazy-loaded) `role` relationship and lowercased.
+3. If the lowercased label is **not** in the allowed array, a `403 Unauthorized` response is returned immediately.
+4. If the label matches, `$next($request)` passes the request through to the controller.
+
+<Note>
+  Because the middleware calls `$request->user()->role->label`, it assumes the user is already authenticated and that their `role` relationship is populated. Always pair `role:*` with the `auth` middleware to guarantee both preconditions are met.
+</Note>
+
+## Protecting Routes
+
+Routes use `->middleware('role:admin')` for admin-only sections and `->middleware(['auth', 'role:admin|user'])` for sections accessible by both roles. Here is how this looks in `web.php`:
+
+```php
+// Both roles can access the dashboard prefix
+Route::prefix('dashboard')
+    ->middleware(['auth', 'role:admin|user'])
+    ->group(function () {
+
+        Route::view('/', 'dashboard.home')->name('dashboard');
+
+        // Events and tickets — available to admin and user alike
+        Route::prefix('events')->group(function () { /* ... */ });
+        Route::prefix('tickets')->group(function () { /* ... */ });
+
+        // Admin-only section — additional role check on the inner group
+        Route::prefix('admin')->middleware('role:admin')->group(function () {
+            Route::get('/users',      [UserController::class,    'index']);
+            Route::get('/categories', [CategoryController::class,'index']);
+            Route::get('/status',     [StatusController::class,  'index']);
+            // ...
+        });
+    });
+```
+
+The outer group's `role:admin|user` check rejects any authenticated session that does not hold either recognized role. The inner `role:admin` check then further narrows the admin prefix so that `user`-role accounts receive a `403` if they attempt to reach any `/dashboard/admin/*` URL.
+
+## Permission Matrix
+
+The table below summarises which routes each role can access.
+
+| Section | Route | `user` | `admin` |
+|---------|-------|:------:|:-------:|
+| Home | `/` | ✅ | ✅ |
+| Explore events | `/explore` | ✅ | ✅ |
+| Event detail | `/event/{event}` | ✅ | ✅ |
+| Dashboard home | `/dashboard` | ✅ | ✅ |
+| My events (list) | `/dashboard/events` | ✅ | ✅ |
+| My events (create/edit/delete) | `/dashboard/events/create`, `edit`, `delete` | ✅ | ✅ |
+| My tickets (list) | `/dashboard/tickets` | ✅ | ✅ |
+| My tickets (purchase) | `POST /dashboard/tickets/store` | ✅ | ✅ |
+| Ticket PDF report | `/dashboard/tickets/{id}/report` | ✅ | ✅ |
+| User management | `/dashboard/admin/users` | ❌ | ✅ |
+| Category management | `/dashboard/admin/categories` | ❌ | ✅ |
+| Status management | `/dashboard/admin/status` | ❌ | ✅ |
+
+## Assigning Roles
+
+A user's role is set by storing the appropriate `role_id` foreign key on the `users` row. There are two places where this happens:
+
+- **Admin creates a user** — the `UserController::store` method accepts `role_id` from the creation form and persists it directly.
+- **Admin edits a user** — the `UserController::update` method accepts a new `role_id` and overwrites the existing value.
+
+```php
+// During creation (UserController::store)
+$user->role_id = $request->role_id;
+$user->save();
+
+// During update (UserController::update)
+$user->role_id = $request->role_id;
+$user->save();
+```
+
+The default admin account seeded by `UserTableSeeder` is assigned `role_id = 1` (Administrator) explicitly:
+
+```php
+User::create([
+    'name'     => 'Admin',
+    'email'    => 'admin@admin.com',
+    'password' => Hash::make('123456789'),
+    'role_id'  => 1,   // Administrator
+]);
+```
+
+<Warning>
+  Eventify does not provide a role-selection step during self-registration. Users who sign up through the standard registration flow receive the database default of `role_id = 2` (User). An administrator must manually edit the account and assign `role_id = 1` if elevated privileges are required.
+</Warning>
+
+<Tip>
+  If you need to verify which role an authenticated user holds at runtime, access `Auth::user()->role->label` in a controller or Blade view. This returns `"admin"` or `"user"` and can be used for conditional rendering of navigation items or action buttons.
+</Tip>

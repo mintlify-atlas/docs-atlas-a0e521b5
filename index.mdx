@@ -1,20 +1,68 @@
 ---
-title: "Introduction"
-description: "Welcome to your project"
+title: "Eventify: Event Management Platform"
+sidebarTitle: "Home"
+description: "Eventify is a full-stack Laravel web app for creating, promoting, and managing events — from intimate gatherings to large concerts — with ticketing and a REST API."
 ---
 
-Write a short description of your product here. What it does, who it's for, and what they can accomplish with it.
+Eventify is an open-source web application built with Laravel and MySQL that lets users create and promote events of any scale. Whether you're organizing a small house party or a sold-out concert, Eventify handles event listings, ticket purchasing, geolocation, role-based access, and PDF report generation — all in one platform.
 
-<Tip>
-  Ready to make this your own? Start by editing this page. Update your `docs.json` file to customize your site. Then fill out the [Quickstart](/quickstart) page.
-</Tip>
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Set up and run Eventify locally in minutes with Laravel Artisan commands.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Configure your database, storage, and environment variables.
+  </Card>
+  <Card title="Core Features" icon="calendar" href="/features/events">
+    Explore event management, ticketing, categories, and more.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Integrate with Eventify's REST API for events, categories, and locations.
+  </Card>
+</CardGroup>
 
-<Card title="Quickstart" icon="rocket" href="/quickstart">
-  This card links to the quickstart page in your project.
-</Card>
-<Card title="Components" icon="puzzle-piece" href="https://mintlify.com/docs/components">
-  Add cards, callouts, steps, tabs, and more to design and structure your pages.
-</Card>
-<Card title="Settings" icon="gear" href="https://mintlify.com/docs/organize/settings">
-  Set your site name, branding, and navigation in the `docs.json` file.
-</Card>
+## What Eventify Offers
+
+Eventify provides everything needed to run an event promotion platform:
+
+<CardGroup cols={3}>
+  <Card title="Event Management" icon="calendar-plus">
+    Create, edit, and delete events with images, dates, capacity, and pricing.
+  </Card>
+  <Card title="Ticket Purchasing" icon="ticket">
+    Users can purchase tickets; capacity is tracked and updated automatically.
+  </Card>
+  <Card title="Geolocation" icon="map-pin">
+    Addresses are geocoded via the Nominatim OpenStreetMap API.
+  </Card>
+  <Card title="Role-Based Access" icon="shield">
+    Two roles — admin and user — each with distinct permissions and dashboards.
+  </Card>
+  <Card title="REST API" icon="plug">
+    Full CRUD API for events and categories; readable endpoints for locations and statuses.
+  </Card>
+  <Card title="PDF Reports" icon="file-pdf">
+    Download event summaries and ticket receipts as PDF files.
+  </Card>
+</CardGroup>
+
+## Get Started
+
+<Steps>
+  <Step title="Clone and install dependencies">
+    Clone the repository and run `composer update` to install all PHP dependencies.
+  </Step>
+  <Step title="Configure your environment">
+    Copy `.env.example` to `.env`, set your database credentials, and generate an application key.
+  </Step>
+  <Step title="Run migrations and seed data">
+    Execute `php artisan migrate:fresh --seed` to create the database schema and populate it with sample data.
+  </Step>
+  <Step title="Start the server">
+    Run `php artisan serve` and open `http://localhost:8000` in your browser.
+  </Step>
+</Steps>
+
+<Note>
+  Eventify also exposes a REST API at `/api/` for headless integrations. See the [API Reference](/api/overview) for full endpoint documentation.
+</Note>

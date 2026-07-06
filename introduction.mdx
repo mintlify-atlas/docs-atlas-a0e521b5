@@ -1,0 +1,62 @@
+---
+title: "Eventify: Open-Source Event Management Platform"
+sidebarTitle: "Introduction"
+description: "Eventify is a Laravel-based web app for creating and promoting events of any scale, with built-in ticketing, geolocation, role-based access, and a REST API."
+---
+
+Eventify is a self-hosted, open-source event management platform built on Laravel 10 and MySQL. It gives developers and organizations a fully functional foundation for creating, promoting, and managing events — from small private gatherings to large concerts and conventions — without relying on a third-party SaaS. Because you own the deployment, you control the data, the branding, and the feature roadmap.
+
+## What You Can Do with Eventify
+
+Eventify ships with everything needed to run a complete event lifecycle out of the box. Organizers can create richly detailed event listings enriched with real-world geolocation data pulled from the Nominatim OpenStreetMap API. Attendees browse the catalog, purchase tickets, and receive PDF confirmations generated on the server with DomPDF. Administrators oversee the entire platform through a protected dashboard with full CRUD access to events, locations, categories, statuses, and users.
+
+## Key Capabilities
+
+- **Event creation with geolocation** — Locations are geocoded via the Nominatim OpenStreetMap API, giving every event a precise, human-readable address and map coordinates without requiring a paid mapping service.
+- **Ticket purchasing** — Users can purchase tickets for any available event directly from the platform. Ticket records are stored in MySQL and linked to both the event and the purchasing user.
+- **PDF reports** — Administrators can generate downloadable PDF reports for events and ticket sales using the `barryvdh/laravel-dompdf` package, rendered entirely server-side.
+- **Role-based access control** — Two discrete roles — `admin` and `user` — gate access to sensitive routes via a custom `role` middleware registered in the HTTP Kernel. Admins have full platform control; regular users have access to browsing and purchasing flows.
+- **REST API** — A token-authenticated REST API powered by Laravel Sanctum exposes event and ticket resources to external consumers, including the companion React microservice.
+
+## Technology Stack
+
+| Layer | Technology |
+|---|---|
+| Language | PHP 8.1+ |
+| Framework | Laravel 10 |
+| Database | MySQL |
+| Templating | Blade + Bootstrap 5 |
+| Authentication | Laravel Sanctum |
+| PDF Generation | barryvdh/laravel-dompdf 3.x |
+| Geocoding | Nominatim OpenStreetMap API |
+| HTTP Client | Guzzle 7.x |
+
+## User Roles
+
+Eventify enforces two roles at the application level, seeded automatically when you run the database seeders:
+
+- **`admin`** — Full access to the admin dashboard. Can create, edit, and delete events, locations, categories, statuses, and users. Can also generate and download PDF reports.
+- **`user`** — Standard authenticated access. Can browse the event catalog, view event details, and purchase tickets.
+
+Role enforcement is handled by the `App\Http\Middleware\Role` middleware, registered under the `role` alias in `app/Http/Kernel.php`.
+
+<Note>
+  Eventify has a companion **React microservice** that consumes the Sanctum-authenticated REST API to provide an alternative frontend experience. You can find it at [https://github.com/astrxnomo/microservice-eventify-app](https://github.com/astrxnomo/microservice-eventify-app).
+</Note>
+
+## Explore the Docs
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install Eventify locally and have it running in under five minutes.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Configure environment variables, database, mail, and storage for your deployment.
+  </Card>
+  <Card title="Core Features" icon="calendar" href="/features/events">
+    Learn how events, tickets, categories, statuses, and locations work together.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the Sanctum-authenticated REST API endpoints for external integrations.
+  </Card>
+</CardGroup>

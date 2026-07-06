@@ -1,0 +1,94 @@
+{
+  "projectType": "saas",
+  "projectName": "Eventify",
+  "projectDescription": "A full-stack Laravel web application for creating, promoting, and managing events — from small gatherings to large concerts — with ticket purchasing, role-based access control, and a REST API.",
+  "theme": "almond",
+  "primaryColor": "#ef7025",
+  "lightColor": "#eec9bc",
+  "darkColor": "#4fa1ab",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "configuration"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/events",
+              "features/tickets",
+              "features/categories-and-status"
+            ]
+          },
+          {
+            "group": "Dashboard & Administration",
+            "pages": [
+              "dashboard/overview",
+              "dashboard/user-management",
+              "dashboard/roles-permissions"
+            ]
+          },
+          {
+            "group": "Database",
+            "pages": [
+              "database/schema",
+              "database/seeders"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/events",
+              "api/categories",
+              "api/locations",
+              "api/statuses"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Event creation and management with image upload and geolocation via Nominatim",
+    "Ticket purchasing with capacity tracking and attendee counting",
+    "Role-based access control (admin and user roles)",
+    "REST API for events, categories, locations, and statuses",
+    "PDF report generation for events and tickets using DomPDF",
+    "Admin dashboard for managing users, categories, and event statuses",
+    "Explore page with filterable event listings",
+    "Soft deletes for events and tickets",
+    "Laravel Sanctum API authentication support"
+  ],
+  "publicApiSurface": [
+    "GET /api/event — List all events",
+    "GET /api/event/{id} — Get a single event",
+    "POST /api/event — Create an event",
+    "PUT /api/event/{id} — Update an event",
+    "DELETE /api/event/{id} — Delete an event",
+    "GET /api/category — List all categories",
+    "GET /api/category/{id} — Get a single category",
+    "POST /api/category — Create a category",
+    "PUT /api/category/{id} — Update a category",
+    "DELETE /api/category/{id} — Delete a category",
+    "GET /api/locations — List all locations",
+    "GET /api/statuses — List all statuses"
+  ]
+}
